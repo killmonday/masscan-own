@@ -54,7 +54,7 @@ text_out_banner(struct Output *out, FILE *fp, time_t timestamp,
         enum ApplicationProtocol proto, unsigned ttl,
         const unsigned char *px, unsigned length)
 {
-    char banner_buffer[MAX_BANNER_LENGTH];
+    char banner_buffer[4096];
     ipaddress_formatted_t fmt = ipaddress_fmt(ip);
 
 

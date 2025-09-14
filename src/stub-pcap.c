@@ -1,6 +1,6 @@
 /* Copyright (c) 2007 by Errata Security, All Rights Reserved
  * Copyright (c) 2017 by Robert David Graham
- * Programmer(s): Robert David Graham [rdg]
+ * Programer(s): Robert David Graham [rdg]
  */
 /*
 	LIBPCAP INTERFACE
@@ -25,7 +25,7 @@
  static libpcap.a library.
  
 */
-#include "util-logger.h"
+#include "logger.h"
 
 #if defined(_MSC_VER)
 #pragma warning(disable:4115 4201)
@@ -371,7 +371,6 @@ if (pl->datalink == NULL) pl->func_err=1, pl->datalink = null_##PCAP_DATALINK;
             "libpcap.so",
             "libpcap.A.dylib",
             "libpcap.dylib",
-            "libpcap.so.1",
             "libpcap.so.0.9.5",
             "libpcap.so.0.9.4",
             "libpcap.so.0.8",

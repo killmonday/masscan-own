@@ -6,9 +6,9 @@
 */
 #include "rawsock.h"
 #include "templ-pkt.h"
-#include "util-logger.h"
+#include "logger.h"
 #include "main-ptrace.h"
-#include "util-safefunc.h"
+#include "string_s.h"
 #include "stub-pcap.h"
 #include "stub-pfring.h"
 #include "pixie-timer.h"
@@ -110,6 +110,7 @@ rawsock_init(void)
 /* variables used to print DHCP time info */
     //struct tm newtime;
     //char buffer[32];
+    //errno_t error;
 
     ULONG ulOutBufLen = sizeof (IP_ADAPTER_INFO);
     pAdapterInfo = (IP_ADAPTER_INFO *) malloc(sizeof (IP_ADAPTER_INFO));
@@ -144,15 +145,15 @@ rawsock_init(void)
                 if (name == NULL || addr == NULL)
                     exit(1);
 
-                snprintf(name, name_len, "\\Device\\NPF_%s", pAdapter->AdapterName);
+                sprintf_s(name, name_len, "\\Device\\NPF_%s", pAdapter->AdapterName);
 
                 //printf("\tAdapter Desc: \t%s\n", pAdapter->Description);
                 //printf("\tAdapter Addr: \t");
                 for (i = 0; i < pAdapter->AddressLength; i++) {
                     if (i == (pAdapter->AddressLength - 1))
-                        snprintf(addr+i*3, addr_len-i*3, "%.2X", pAdapter->Address[i]);
+                        sprintf_s(addr+i*3, addr_len-i*3, "%.2X", pAdapter->Address[i]);
                     else
-                        snprintf(addr+i*3, addr_len-i*3, "%.2X-", pAdapter->Address[i]);
+                        sprintf_s(addr+i*3, addr_len-i*3, "%.2X-", pAdapter->Address[i]);
                 }
                 //printf("%s  ->  %s\n", addr, name);
                 adapter_names[adapter_name_count].easy_name = addr;
@@ -169,8 +170,8 @@ rawsock_init(void)
                 char *addr = (char*)malloc(addr_len);
                 if (name == NULL || addr == NULL)
                     exit(1);
-                snprintf(name, name_len, "\\Device\\NPF_%s", pAdapter->AdapterName);
-                snprintf(addr, addr_len, "%s", pAdapter->IpAddressList.IpAddress.String);
+                sprintf_s(name, name_len, "\\Device\\NPF_%s", pAdapter->AdapterName);
+                sprintf_s(addr, addr_len, "%s", pAdapter->IpAddressList.IpAddress.String);
                 //printf("%s  ->  %s\n", addr, name);
                 adapter_names[adapter_name_count].easy_name = addr;
                 adapter_names[adapter_name_count].hard_name = name;
@@ -193,7 +194,7 @@ rawsock_init(void)
 
 /***************************************************************************
   * This function prints to the command line a list of all the network
-  * interfaces/devices.
+  * intefaces/devices.
  ***************************************************************************/
 void
 rawsock_list_adapters(void)
@@ -459,7 +460,7 @@ is_numeric_index(const char *ifname)
     int result = 1;
     int i;
 
-    /* empty strings aren't numbers */
+    /* emptry strings aren't numbers */
     if (ifname[0] == '\0')
         return 0;
 
@@ -476,7 +477,7 @@ is_numeric_index(const char *ifname)
 
 
 /***************************************************************************
- * Used on Windows: if the adapter name is a numeric index, convert it to
+ * Used on Windows: if the adpter name is a numeric index, convert it to
  * the full name.
  ***************************************************************************/
 const char *
@@ -635,7 +636,7 @@ rawsock_init_adapter(const char *adapter_name,
     /*----------------------------------------------------------------
      * PORTABILITY: PF_RING
      *  If we've been told to use --pfring, then attempt to open the
-     *  network adapter using the PF_RING API rather than libpcap.
+     *  network adapter usign the PF_RING API rather than libpcap.
      *  Since a lot of things can go wrong, we do a lot of extra
      *  logging here.
      *----------------------------------------------------------------*/
@@ -664,7 +665,7 @@ rawsock_init_adapter(const char *adapter_name,
         adapter->link_type = 1;
         if (adapter->ring == NULL) {
             LOG(0, "pfring:'%s': OPEN ERROR: %s\n",
-                adapter_name, strerror(errno));
+                adapter_name, strerror_x(errno));
             return 0;
         } else
             LOG(1, "pfring:'%s': successfully opened\n", adapter_name);
@@ -696,7 +697,7 @@ rawsock_init_adapter(const char *adapter_name,
         err = PFRING.enable_ring(adapter->ring);
         if (err != 0) {
                 LOG(0, "pfring: '%s': ENABLE ERROR: %s\n",
-                    adapter_name, strerror(errno));
+                    adapter_name, strerror_x(errno));
                 PFRING.close(adapter->ring);
                 adapter->ring = 0;
                 return 0;

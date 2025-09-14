@@ -9,8 +9,6 @@
 #include "unusedparm.h"
 #include "masscan-app.h"
 
-#define MAX_BANNER_LENGTH 8192
-
 struct Masscan;
 struct Output;
 enum ApplicationProtocol;
@@ -59,7 +57,7 @@ struct Output
     time_t when_scan_started;
 
     /**
-     * Whether we've started writing to a file yet. We are lazy writing
+     * Whether we've started writing to a file yet. We are lazy writing the
      * the file header until we've actually go something to write
      */
     unsigned is_virgin_file:1;
@@ -81,8 +79,7 @@ struct Output
         char *directory;
     } rotate;
 
-    unsigned is_banner:1;           /* --banners */
-    unsigned is_banner_rawudp:1;    /* --rawudp */
+    unsigned is_banner:1;
     unsigned is_gmt:1; /* --gmt */
     unsigned is_interactive:1; /* echo to command line */
     unsigned is_show_open:1; /* show open ports (default) */
@@ -119,7 +116,6 @@ struct Output
     struct {
         ipaddress ip;
         unsigned port;
-        char *password;
         ptrdiff_t fd;
         uint64_t outstanding;
         unsigned state;

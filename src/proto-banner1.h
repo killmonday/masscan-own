@@ -8,17 +8,17 @@
 #include "proto-x509.h"
 #include "proto-spnego.h"
 
-struct stack_handle_t;
+struct InteractiveData;
 struct Banner1;
-struct StreamState;
+struct ProtocolState;
 
 typedef void (*BannerParser)(
               const struct Banner1 *banner1,
               void *banner1_private,
-              struct StreamState *stream_state,
+              struct ProtocolState *stream_state,
               const unsigned char *px, size_t length,
               struct BannerOutput *banout,
-              struct stack_handle_t *socket);
+              struct InteractiveData *more);
 struct Banner1
 {
     struct lua_State *L;
@@ -38,7 +38,7 @@ struct Banner1
     unsigned is_poodle_sslv3:1;
 
     struct {
-        const struct ProtocolParserStream *tcp[65536];
+        struct ProtocolParserStream *tcp[65536];
     } payloads;
     
     BannerParser parser[PROTO_end_of_list];
@@ -125,13 +125,6 @@ struct FTPSTUFF {
     unsigned is_last:1;
 };
 
-struct MCSTUFF {
-    char * banmem;
-    size_t totalLen;
-    size_t imgstart;
-    size_t imgend;
-    int brackcount;
-};
 
 struct SMTPSTUFF {
     unsigned code;
@@ -170,7 +163,6 @@ struct SMBSTUFF {
     unsigned is_printed_ver:1;
     unsigned is_printed_guid:1;
     unsigned is_printed_time:1;
-    unsigned is_printed_boottime:1;
     unsigned nbt_length;
     unsigned nbt_err;
     
@@ -237,11 +229,7 @@ struct RDPSTUFF {
     } cc;
 };
 
-struct SSHSTUFF{
-    size_t packet_length;
-};
-
-struct StreamState {
+struct ProtocolState {
     unsigned state;
     unsigned remaining;
     unsigned short port;
@@ -258,17 +246,12 @@ struct StreamState {
         struct MEMCACHEDSTUFF memcached;
         struct SMBSTUFF smb;
         struct RDPSTUFF rdp;
-        struct MCSTUFF mc;
-        struct SSHSTUFF ssh;
     } sub;
 };
 
-enum StreamFlags {
-    SF__none = 0,
-    SF__close = 0x01, /* send FIN after the static Hello is sent*/
-    SF__nowait_hello = 0x02,    /* send our hello immediately, don't wait for their hello */
+enum {
+    CTRL_SMALL_WINDOW = 1,
 };
-
 
 /**
  * A registration structure for various TCP stream protocols
@@ -279,18 +262,18 @@ struct ProtocolParserStream {
     unsigned port;
     const void *hello;
     size_t hello_length;
-    enum StreamFlags flags;
+    unsigned ctrl_flags;
     int (*selftest)(void);
     void *(*init)(struct Banner1 *b);
     void (*parse)(
         const struct Banner1 *banner1,
         void *banner1_private,
-        struct StreamState *stream_state,
+        struct ProtocolState *stream_state,
         const unsigned char *px, size_t length,
         struct BannerOutput *banout,
-        struct stack_handle_t *socket);
-    void (*cleanup)(struct StreamState *stream_state);
-    void (*transmit_hello)(const struct Banner1 *banner1, struct stack_handle_t *socket);
+        struct InteractiveData *more);
+    void (*cleanup)(struct ProtocolState *stream_state);
+    void (*transmit_hello)(const struct Banner1 *banner1, struct InteractiveData *more);
     
     /* When multiple items are registered for a port. When one
      * connection is closed, the next will be opened.*/
@@ -321,13 +304,13 @@ struct Patterns {
     unsigned id;
     
     /**
-     * Whether this string matches only at the beginning ('anchored')
+     * Whether this string matches only at the begining ('anchored')
      * or anywhere in the input. Virtually all the patterns are anchored.
      */
     unsigned is_anchored;
     
     /**
-     * Some extra flags for the pattern matcher for a few of the patterns.
+     * Some extra flags for the pattern matcher for a few os the patterns.
      */
     unsigned extra;
 };
@@ -342,10 +325,10 @@ banner1_destroy(struct Banner1 *b);
 unsigned
 banner1_parse(
         const struct Banner1 *banner1,
-        struct StreamState *pstate,
+        struct ProtocolState *pstate,
         const unsigned char *px, size_t length,
         struct BannerOutput *banout,
-        struct stack_handle_t *socket);
+        struct InteractiveData *more);
 
 
 

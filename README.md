@@ -1,4 +1,4 @@
-[![unittests](https://github.com/robertdavidgraham/masscan/actions/workflows/unittests.yml/badge.svg?branch=master)](https://github.com/robertdavidgraham/masscan/actions/workflows/unittests.yml/?branch=master)
+[![Build Status](https://travis-ci.org/robertdavidgraham/masscan.svg?branch=master)](https://travis-ci.org/robertdavidgraham/masscan.svg)
 
 # MASSCAN: Mass IP port scanner
 
@@ -53,7 +53,7 @@ While Linux is the primary target platform, the code runs well on many other
 systems (Windows, macOS, etc.). Here's some additional build info:
 
   * Windows w/ Visual Studio: use the VS10 project
-  * Windows w/ MinGW: just type `make`
+  * Windows w/ MingGW: just type `make`
   * Windows w/ cygwin: won't work
   * Mac OS X /w XCode: use the XCode4 project
   * Mac OS X /w cmdline: just type `make`
@@ -152,11 +152,11 @@ On FreeBSD and older MacOS, use an `ipfw` command:
 On newer MacOS and OpenBSD, use the `pf` packet-filter utility. 
 Edit the file `/etc/pf.conf` to add a line like the following:
 
-    block in proto tcp from any to any port 40000:40015
+    block in proto tcp from any to any port 40000
     
 Then to enable the firewall, run the command:
     
-    # pfctl -E    
+    # pfctrl -E    
 
 If the firewall is already running, then either reboot or reload the rules
 with the following command:
@@ -504,7 +504,7 @@ probably faster than you want anyway.
 A bounty is offered for vulnerabilities, see the VULNINFO.md file for more
 information.
 
-This project uses safe functions like `safe_strcpy()` instead of unsafe functions
+This project uses safe functions like `strcpy_s()` instead of unsafe functions
 like `strcpy()`.
 
 This project has automated unit regression tests (`make regress`).
@@ -590,7 +590,7 @@ This second benchmark shows roughly how fast the program would run if it were
 using PF_RING, which has near zero overhead.
 
 By the way, the randomization algorithm makes heavy use of "integer arithmetic",
-a chronically slow operation on CPUs. Modern CPUs have doubled the speed
+a chromically slow operation on CPUs. Modern CPUs have doubled the speed
 at which they perform this calculation, making `masscan` much faster.
 
 
@@ -599,19 +599,3 @@ at which they perform this calculation, making `masscan` much faster.
 This tool created by Robert Graham:
 email: robert_david_graham@yahoo.com
 twitter: @ErrataRob
-
-# License
-
-Copyright (c) 2013 Robert David Graham
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as published by
-the Free Software Foundation, version 3 of the License.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program.  If not, see <https://www.gnu.org/licenses/>.

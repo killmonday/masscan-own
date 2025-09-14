@@ -45,7 +45,7 @@ banout_newline(struct BannerOutput *banout, unsigned proto);
 /**
  * End the banner of the current. This is called when the protocol parser
  * knows it's at the end. The major reason for this is processing the
- * SSL certificates, so that each certificate comes back as a separate
+ * SSL certficates, so that each certificate comes back as a separate
  * banner.
  */
 void
@@ -58,9 +58,6 @@ banout_end(struct BannerOutput *banout, unsigned proto);
 void
 banout_append(struct BannerOutput *banout, unsigned proto, const void *px, size_t length);
 #define AUTO_LEN ((size_t)~0)
-
-void
-banout_printf(struct BannerOutput *banout, unsigned proto, const char *fmt, ...);
 
 /**
  * Append a single character to the banner.
@@ -81,7 +78,7 @@ banout_append_unicode(struct BannerOutput *banout, unsigned proto, unsigned c);
 /**
  * Select a specific string (of the specified protocol).
  * The "banner output" can have multiple protocol objects associated
- * with it, such as an SSL protocol object and an X.509 certificate.
+ * with it, such as an SSL protocol objec and an X.509 certificate.
  * Thus, instead of just grabbing the string, we need to grab the
  * specific protocol instead.
  */

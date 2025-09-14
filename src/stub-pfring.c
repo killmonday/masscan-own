@@ -2,13 +2,13 @@
     PF_RING compatibility layer
 
     In order to avoid special build hassle, this code links to PF_RING at
-    runtime instead compile-time. That means you can compile this code
+    runtime instead compiletime. That means you can compile this code
     BEFORE installing and building PF_RING.
 
 */
 #include "stub-pfring.h"
-#include "util-safefunc.h"
-#include "util-logger.h"
+#include "string_s.h"
+#include "logger.h"
 
 struct PFRING PFRING;
 
@@ -27,11 +27,12 @@ PFRING_is_installed(void)
 {
 #if defined(__linux__)
     FILE *fp;
+    int err;
     char line[256];
     int found = 0;
 
-    fp = fopen("/proc/modules", "rb");
-    if (fp == NULL)
+    err = fopen_s(&fp, "/proc/modules", "rb");
+    if (err)
         return 0;
 
     while (fgets(line, sizeof(line), fp)) {
@@ -66,12 +67,12 @@ PFRING_init(void)
     LOG(6, "pfring: looking for 'libpfring.so'\n");
     h = dlopen("libpfring.so", RTLD_LAZY);
     if (h == NULL) {
-        LOG(2, "pfring: error: dlopen('libpfring.so'): %s\n", strerror(errno));
+        LOG(2, "pfring: error: dlopen('libpfring.so'): %s\n", strerror_x(errno));
         return 0;
     } else
         LOG(2, "pfring: found 'libpfring.so'!\n");
 
-#define LOADSYM(name) if ((PFRING.name = dlsym(h, "pfring_"#name)) == 0) {LOG(2, "pfring_%s: not found in 'libpfring.so': %s\n", #name, strerror(errno));err=1;}
+#define LOADSYM(name) if ((PFRING.name = dlsym(h, "pfring_"#name)) == 0) {LOG(2, "pfring_%s: not found in 'libpfring.so': %s\n", #name, strerror_x(errno));err=1;}
     LOADSYM(open);
     LOADSYM(close);
     LOADSYM(enable_ring);

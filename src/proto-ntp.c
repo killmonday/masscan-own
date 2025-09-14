@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include "smack.h"
-#include "util-safefunc.h"
+#include "string_s.h"
 #include "output.h"
 #include "masscan-app.h"
 #include "proto-preprocess.h"
@@ -74,7 +74,7 @@ static const struct Val2String request_codes[] = {
 
 struct Val2String error_codes[] = {
     {0, "No Error"},
-    {1, "Incompatible Implementation Number"},
+    {1, "Incompatable Implementation Number"},
     {2, "Unimplemented Request Code"},
     {3, "Format Error"},
     {4, "No Data Available"},
@@ -122,7 +122,7 @@ ntp_modlist_parse(const unsigned char *px,
         const char *errmsg = val2string_lookup(error_codes, errcode);
         if (errmsg == 0)
             errmsg = "Bogus Error Code";
-        snprintf(foo, sizeof(foo), "%u", errcode);
+        sprintf_s(foo, sizeof(foo), "%u", errcode);
         banout_append(banout, PROTO_NTP, "Response was NTP Error Code ", AUTO_LEN);
         banout_append(banout, PROTO_NTP, foo, AUTO_LEN);
         banout_append(banout, PROTO_NTP, " - \"", AUTO_LEN);
@@ -145,7 +145,7 @@ ntp_modlist_parse(const unsigned char *px,
     {
         char msg[128];
 
-        snprintf(msg, sizeof(msg), " response-size=%u-bytes more=%s",
+        sprintf_s(msg, sizeof(msg), " response-size=%u-bytes more=%s",
             record_count * record_size, ((px[0]>>6)&1)?"true":"false");
 
         banout_append(banout, PROTO_NTP, msg, AUTO_LEN);

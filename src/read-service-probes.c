@@ -8,11 +8,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef _MSC_VER
-#pragma warning(disable:4996)
-#endif
-
 #if defined(WIN32)
+#pragma warning(disable:4996)
 #define strncasecmp _strnicmp
 #endif
 
@@ -214,7 +211,7 @@ parse_fallback(struct NmapServiceProbeList *list, const char *line, size_t offse
             break;
         }
         
-        /* Allocate a record */
+        /* Alocate a record */
         fallback = CALLOC(1, sizeof(*fallback));
         
         fallback->name = MALLOC(name_length+1);
@@ -452,7 +449,7 @@ parse_match(struct NmapServiceProbeList *list, const char *line, size_t offset, 
     /*
      * <pattern>
      *  - must start with a 'm' character
-     *  - a delimiter character starts/stop the string, typically '/' or '|'
+     *  - a delimiter character starts/stop the string, tpyically '/' or '|'
      *  - contents are PCRE regex
      */
     {
@@ -480,7 +477,7 @@ parse_match(struct NmapServiceProbeList *list, const char *line, size_t offset, 
             offset++;
         regex_length = offset - regex_offset;
         if (offset >= line_length || line[offset] != delimiter) {
-            fprintf(stderr, "%s:%u:%u: missing ending delimiter '%c'\n", filename, line_number, (unsigned)offset, isprint(delimiter)?delimiter:'.');
+            fprintf(stderr, "%s:%u:%u: missinged ending delimiter '%c'\n", filename, line_number, (unsigned)offset, isprint(delimiter)?delimiter:'.');
             goto parse_error;
         } else
             offset++;
@@ -515,7 +512,7 @@ parse_match(struct NmapServiceProbeList *list, const char *line, size_t offset, 
      * <versioninfo>
      *  - several optional fields
      *  - each file starts with identifier (p v i h o d cpe:)
-     *  - next comes the delimiter character (preferably '/' slash)
+     *  - next comes the delimiter character (preferrably '/' slash)
      *  - next comes data
      *  - ends with delimiter
      */
@@ -588,7 +585,7 @@ parse_match(struct NmapServiceProbeList *list, const char *line, size_t offset, 
             offset++;
         value_length = offset - value_offset;
         if (offset >= line_length || line[offset] != delimiter) {
-            fprintf(stderr, "%s:%u:%u: missing ending delimiter '%c'\n", filename, line_number, (unsigned)offset, isprint(delimiter)?delimiter:'.');
+            fprintf(stderr, "%s:%u:%u: missinged ending delimiter '%c'\n", filename, line_number, (unsigned)offset, isprint(delimiter)?delimiter:'.');
             goto parse_error;
         } else
             offset++;
@@ -697,7 +694,7 @@ parse_line(struct NmapServiceProbeList *list, const char *line)
             return;
         case SvcP_Probe:
             /* Creates a new probe record, all the other types (except 'Exclude') operate
-             * on the current probe record */
+             * on the current probe reocrd */
             parse_probe(list, line, offset, line_length);
             return;
     }
@@ -1057,7 +1054,7 @@ nmapserviceprobes_print(const struct NmapServiceProbeList *list, FILE *fp)
                 (probe->protocol==6)?"TCP":"UDP",
                 probe->name);
         
-        /* print the query/hello string */
+        /* preting the query/hello string */
         nmapserviceprobes_print_hello(fp, probe->hellostring, probe->hellolength, '|');
         
         fprintf(fp, "\n");
@@ -1082,7 +1079,7 @@ nmapserviceprobes_print(const struct NmapServiceProbeList *list, FILE *fp)
             fprintf(fp, " ");
             
             for (vi=match->versioninfo; vi; vi=vi->next) {
-                const char *tag;
+                const char *tag = "";
                 switch (vi->type) {
                     case SvcV_Unknown:          tag = "u"; break;
                     case SvcV_ProductName:      tag = "p"; break;
@@ -1092,7 +1089,6 @@ nmapserviceprobes_print(const struct NmapServiceProbeList *list, FILE *fp)
                     case SvcV_OperatingSystem:  tag = "o"; break;
                     case SvcV_DeviceType:       tag = "e"; break;
                     case SvcV_CpeName:          tag = "cpe:"; break;
-                    default: tag = "";
                 }
                 fprintf(fp, "%s", tag);
                 nmapserviceprobes_print_dstring(fp, vi->value, strlen(vi->value), '/');

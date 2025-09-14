@@ -11,10 +11,10 @@
 #include "massip-parse.h"
 #include "massip-rangesv4.h"
 #include "massip-rangesv6.h"
-#include "util-logger.h"
+#include "logger.h"
 #include "util-bool.h"
 #include "util-malloc.h"
-#include "util-safefunc.h"
+#include "string_s.h"
 #include "unusedparm.h"
 
 #include <string.h>
@@ -200,7 +200,7 @@ enum {
 
 
 /**
- * Applies a CIDR mask to an IPv4 address to create a begin/end address.
+ * Applies a CIDR mask to an IPv4 address to creat a begin/end address.
  */
 static void
 _ipv4_apply_cidr(unsigned *begin, unsigned *end, unsigned bitcount)
@@ -221,13 +221,13 @@ _ipv4_apply_cidr(unsigned *begin, unsigned *end, unsigned bitcount)
  *      An in/out parameter. This may have some extra bits somewhere in the range.
  *      These will be masked off and set to zero when the function returns.
  * @param end
- *      An out parameter. This will be set to the last address of the range, meaning
+ *      An out prameter. This will be set to the last address of the range, meaning
  *      that all the trailing bits will be set to '1'.
  * @parame prefix
  *      The number of bits of the prefix, from [0..128]. If the value is 0,
  *      then the 'begin' address will be set to all zeroes and the 'end'
  *      address will be set to all ones. If the value is 128,
- *      the 'begin' address is unchanged and the 'end' address
+ *      the 'begin' address is unchanged and hte 'end' address
  *      is set to the same as 'begin'.
  */
 static void
@@ -447,8 +447,8 @@ _parser_next(struct massip_parser *p, const char *buf, size_t *r_offset, size_t 
                 /* Finish off the trailing number */
                 p->ipv6.tmp[p->ipv6.index++] = (unsigned short)p->tmp;
 
-                /* Do the final processing of this IPv6 address and
-                 * prepare for the next one */
+                /* Do the final processing of this IPv6 address and 
+                 * and prepair for the next one */
                 if (_parser_finish_ipv6(p) != 0) {
                     state = ERROR;
                     length = i;
@@ -476,7 +476,7 @@ _parser_next(struct massip_parser *p, const char *buf, size_t *r_offset, size_t 
                     case ',':
                         result = Found_IPv6;
                         state = 0;
-                        length = i; /* shorten the end to break out of loop */
+                        length = i; /* shortend the end to break out of loop */
                         break;
                     default:
                         state = ERROR;
@@ -826,30 +826,19 @@ massip_parse_file(struct MassIP *massip, const char *filename)
     struct massip_parser p[1];
     char buf[65536];
     FILE *fp = NULL;
+    int err;
     bool is_error = false;
     unsigned addr_count = 0;
     unsigned long long line_number, char_number;
-
-    /* Kludge: should never happen, should fix this when reading in
-     * config, not this deep in the code. */
-    if (filename == 0 || filename[0] == '\0') {
-        fprintf(stderr, "[-] missing filename for ranges\n");
-        exit(1);
-    }
 
     /*
      * Open the file containing IP addresses, which can potentially be
      * many megabytes in size
      */
-    if (strcmp(filename, "-") == 0) {
-        fp = stdin;
-    } else {
-        fp = fopen(filename, "rb");
-        if (fp == NULL) {
-            fprintf(stderr, "[-] FAIL: parsing IP addresses\n");
-            fprintf(stderr, "[-] %s: %s\n", filename, strerror(errno));
-            exit(1);
-        }
+    err = fopen_s(&fp, filename, "rb");
+    if (err || fp == NULL) {
+        perror(filename);
+        exit(1);
     }
 
     /*
@@ -873,7 +862,6 @@ massip_parse_file(struct MassIP *massip, const char *filename)
         offset = 0;
         while (offset < count) {
             unsigned begin, end;
-            int err;
 
             err = _parser_next(p, buf, &offset, count, &begin, &end);
             switch (err) {
@@ -906,17 +894,13 @@ massip_parse_file(struct MassIP *massip, const char *filename)
             }
         }
     }
-    
-    /* Close the file, unless we are reading from <stdin> */
-    if (fp != stdin && fp != NULL)
-        fclose(fp);
+    fclose(fp);
 
     /* In case the file doesn't end with a newline '\n', then artificially
      * add one to the end. This is just a repeat of the code above */
     if (!is_error) {
         size_t offset = 0;
         unsigned begin, end;
-        int err;
         err = _parser_next(p, "\n", &offset, 1, &begin, &end);
         switch (err) {
         case Still_Working:
@@ -1065,7 +1049,7 @@ massip_parse_range(const char *line, size_t *offset, size_t count, struct Range 
     if (offset == NULL)
         offset = &tmp_offset;
     
-    /* Create e parser object */
+    /* Creat e parser object */
     _parser_init(p);
 
     /* Parse the next range from the input */

@@ -8,7 +8,7 @@
 #include "unusedparm.h"
 #include "masscan-app.h"
 #include "output.h"
-#include "stack-tcp-api.h"
+#include "proto-interactive.h"
 #include "proto-preprocess.h"
 #include "proto-ssl.h"
 #include "proto-udp.h"
@@ -107,10 +107,10 @@ static void
 memcached_tcp_parse(  
           const struct Banner1 *banner1,
           void *banner1_private,
-          struct StreamState *pstate,
+          struct ProtocolState *pstate,
           const unsigned char *px, size_t length,
           struct BannerOutput *banout,
-          struct stack_handle_t *socket)
+          struct InteractiveData *more)
 {
     unsigned state = pstate->state;
     unsigned i;
@@ -119,7 +119,7 @@ memcached_tcp_parse(
 
     UNUSEDPARM(banner1_private);
     UNUSEDPARM(banner1);
-    UNUSEDPARM(socket);
+    UNUSEDPARM(more);
 
     if (sm_memcached_responses == 0)
         return;
@@ -360,7 +360,7 @@ memcached_udp_parse(struct Output *out, time_t timestamp,
 
     /* Parse the remainder of the packet as if this were TCP */
     {
-        struct StreamState stuff[1];
+        struct ProtocolState stuff[1];
 
         memset(stuff, 0, sizeof(stuff[0]));
 
@@ -376,7 +376,7 @@ memcached_udp_parse(struct Output *out, time_t timestamp,
     /* Print the banner information, or save to a file, depending */
     output_report_banner(
         out, timestamp,
-        ip_them, 17 /*UDP*/, parsed->port_src,
+        ip_them, 17 /*udp*/, parsed->port_src,
         PROTO_MEMCACHED,
         parsed->ip_ttl,
         banout_string(banout, PROTO_MEMCACHED),

@@ -23,9 +23,6 @@
 #if __NetBSD__
 #include <sys/time.h>
 #define pcap_timeval timeval
-#elif __OpenBSD__
-#include <net/bpf.h>
-#define pcap_timeval bpf_timeval
 #else
 struct pcap_timeval {
         long    tv_sec;         /* seconds */
@@ -136,7 +133,7 @@ typedef int (*PCAP_ACTIVATE)(pcap_t *p);
 /*
  * PORTABILITY: Windows supports the "sendq" feature, and is really slow
  * without this feature. It's not needed on Linux, so we just create
- * equivalent functions that do nothing
+ * equivelent functions that do nothing
  */
 struct pcap_send_queue;
 typedef struct pcap_send_queue pcap_send_queue;

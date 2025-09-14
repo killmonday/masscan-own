@@ -7,10 +7,10 @@ struct MassIP;
 /**
  * Regression test this module.
  * @return
- *      0 on success, or positive integer on failure.
+ *      0 on success, or postivie integer on failure.
  */
 int
-templ_payloads_selftest(void);
+payloads_udp_selftest(void);
 
 /**
  * Create this module. Must be matched with the 'destroy()' function on exit
@@ -33,7 +33,7 @@ payloads_oproto_destroy(struct PayloadsUDP *payloads);
 
 /**
  * Read payloads from an "nmap-payloads" formatted file. The caller is
- * responsible for opening/closing the file, but should passing the
+ * responsible for opening/closing the file, but should passin the
  * filename so that we can print helpful error messages.
  */
 void
@@ -73,7 +73,7 @@ typedef unsigned (*SET_COOKIE)(unsigned char *px, size_t length,
  * Given a UDP port number, return the payload we have that is associated
  * with that port number.
  * @param payloads
- *      A table full over payloads.
+ *      A table full over payloadsd.
  * @param port
  *      The input port number.
  * @param px

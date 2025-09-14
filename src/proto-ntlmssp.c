@@ -1,7 +1,7 @@
 #include "proto-ntlmssp.h"
 #include "masscan-app.h"
 #include "proto-banout.h"
-#include "util-safefunc.h"
+#include "string_s.h"
 #include "util-malloc.h"
 #include <string.h>
 #include <stdlib.h>
@@ -169,7 +169,7 @@ ntlmssp_decode(struct NtlmsspDecode *x,
     /* Version field */
     {
         char buf[64];
-        snprintf(buf, sizeof(buf), " version=%u.%u.%u ntlm-ver=%u",
+        sprintf_s(buf, sizeof(buf), " version=%u.%u.%u ntlm-ver=%u",
                   px[48],
                   px[49],
                   px[50] | px[51]<<8,

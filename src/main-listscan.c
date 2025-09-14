@@ -1,6 +1,6 @@
 #include "masscan.h"
-#include "util-logger.h"
-#include "crypto-blackrock.h"
+#include "logger.h"
+#include "rand-blackrock.h"
 
 
 void
@@ -62,7 +62,7 @@ infinite:
                 printf("%s:%u\n", fmt.string, port);
         }
 
-        i += increment; /* <------ increment by 1 normally, more with shards/NICs */
+        i += increment; /* <------ increment by 1 normally, more with shards/nics */
     }
 
     if (masscan->is_infinite) {

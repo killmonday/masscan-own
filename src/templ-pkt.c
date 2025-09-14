@@ -8,14 +8,12 @@
     appropriate changes.
 */
 #include "templ-pkt.h"
-#include "templ-tcp-hdr.h"
-#include "templ-opts.h"
 #include "massip-port.h"
 #include "proto-preprocess.h"
 #include "proto-sctp.h"
-#include "util-safefunc.h"
+#include "string_s.h"
 #include "pixie-timer.h"
-#include "util-logger.h"
+#include "logger.h"
 #include "templ-payloads.h"
 #include "syn-cookie.h"
 #include "unusedparm.h"
@@ -33,7 +31,7 @@ static unsigned char default_tcp_template[] =
     "\x08\x00"      /* Ethernet type: IPv4 */
     "\x45"          /* IP type */
     "\x00"
-    "\x00\x2c"      /* total length = 40 bytes */
+    "\x00\x28"      /* total length = 40 bytes */
     "\x00\x00"      /* identification */
     "\x00\x00"      /* fragmentation flags */
     "\xFF\x06"      /* TTL=255, proto=TCP */
@@ -44,13 +42,13 @@ static unsigned char default_tcp_template[] =
     "\0\0"          /* source port */
     "\0\0"          /* destination port */
     "\0\0\0\0"      /* sequence number */
-    "\0\0\0\0"      /* ACK number */
-    "\x60"          /* header length */
+    "\0\0\0\0"      /* ack number */
+    "\x50"          /* header length */
     "\x02"          /* SYN */
-    "\x04\x01"      /* window fixed to 1024 */
+    "\x04\x0"        /* window fixed to 1024 */
     "\xFF\xFF"      /* checksum */
     "\x00\x00"      /* urgent pointer */
-      "\x02\x04\x05\xb4"  /* opt [mss 1460] h/t @IvreRocks */
+    "\x02\x04\x05\xb4"  /* added options [mss 1460] */
 ;
 
 static unsigned char default_udp_template[] =
@@ -222,7 +220,7 @@ tcp_checksum2(const unsigned char *px, unsigned offset_ip,
     xsum += px[offset_ip + 16] << 8 | px[offset_ip + 17];
     xsum += px[offset_ip + 18] << 8 | px[offset_ip + 19];
 
-    /* TCP checksum */
+    /* tcp checksum */
     for (i=0; i<tcp_length; i += 2) {
         xsum += px[offset_tcp + i]<<8 | px[offset_tcp + i + 1];
     }
@@ -259,7 +257,7 @@ tcp_ipv4_checksum(struct TemplatePacket *tmpl)
     xsum += px[offset_ip + 16] << 8 | px[offset_ip + 17];
     xsum += px[offset_ip + 18] << 8 | px[offset_ip + 19];
 
-    /* TCP checksum */
+    /* tcp checksum */
     for (i=offset_tcp; i<offset_app; i += 2) {
         xsum += px[i]<<8 | px[i+1];
     }
@@ -289,7 +287,7 @@ udp_checksum2(const unsigned char *px, unsigned offset_ip,
     xsum += px[offset_ip + 16] << 8 | px[offset_ip + 17];
     xsum += px[offset_ip + 18] << 8 | px[offset_ip + 19];
 
-    /* TCP checksum */
+    /* tcp checksum */
     for (i=0; i<tcp_length; i += 2) {
         xsum += px[offset_tcp + i]<<8 | px[offset_tcp + i + 1];
     }
@@ -359,9 +357,9 @@ struct TemplateSet templ_copy(const struct TemplateSet *templset)
     for (i=0; i<templset->count; i++) {
         const struct TemplatePacket *p1 = &templset->pkts[i];
         struct TemplatePacket *p2 = &result.pkts[i];
-        p2->ipv4.packet = MALLOC(2048+p2->ipv4.length);
+        p2->ipv4.packet = MALLOC(p2->ipv4.length);
         memcpy(p2->ipv4.packet, p1->ipv4.packet, p2->ipv4.length);
-        p2->ipv6.packet = MALLOC(2048+p2->ipv6.length);
+        p2->ipv6.packet = MALLOC(p2->ipv6.length);
         memcpy(p2->ipv6.packet, p1->ipv6.packet, p2->ipv6.length);
     }
 
@@ -378,7 +376,7 @@ tcp_set_window(unsigned char *px, size_t px_length, unsigned window)
     size_t offset;
     unsigned xsum;
 
-    /* Parse the frame looking for the TCP header */
+    /* Parse the frame looking for hte TCP header */
     x = preprocess_frame(px, (unsigned)px_length, 1 /*enet*/, &parsed);
     if (!x || parsed.found == FOUND_NOTHING)
         return;
@@ -1162,7 +1160,7 @@ _template_init_ipv6(struct TemplatePacket *tmpl, macaddress_t router_mac_ipv6, u
             break;
 	case PCAP_DLT_RAW: /* Raw (nothing before IP header) */
 	    break;
-        case PCAP_DLT_ETHERNET: /* Ethernet */
+        case PCAP_DLT_ETHERNET: /* Etherent */
             /* Reset the destination MAC address to be the IPv6 router
              * instead of the IPv4 router, which sometimes are different */
             memcpy(buf + 0, router_mac_ipv6.addr, 6);
@@ -1229,7 +1227,7 @@ _template_init(
     unsigned char *px;
     struct PreprocessedInfo parsed;
     unsigned x;
-    
+
     /*
      * Create the new template structure:
      * - zero it out
@@ -1380,14 +1378,10 @@ template_packet_init(
     struct PayloadsUDP *udp_payloads,
     struct PayloadsUDP *oproto_payloads,
     int data_link,
-    uint64_t entropy,
-    const struct TemplateOptions *templ_opts)
+    uint64_t entropy)
 {
-    unsigned char *buf;
-    size_t length;
     templset->count = 0;
     templset->entropy = entropy;
-
 
     /* [SCTP] */
     _template_init(&templset->pkts[Proto_SCTP],
@@ -1398,17 +1392,12 @@ template_packet_init(
     templset->count++;
 
     /* [TCP] */
-    length = sizeof(default_tcp_template) - 1;
-    buf = MALLOC(length);
-    memcpy(buf, default_tcp_template, length);
-    templ_tcp_apply_options(&buf, &length, templ_opts);
     _template_init(&templset->pkts[Proto_TCP],
                    source_mac, router_mac_ipv4, router_mac_ipv6,
-                   buf,
-                   length,
+                   default_tcp_template,
+                   sizeof(default_tcp_template)-1,
                    data_link);
     templset->count++;
-    free(buf);
 
     /* [UDP] */
     _template_init(&templset->pkts[Proto_UDP],
@@ -1526,14 +1515,6 @@ template_selftest(void)
 {
     struct TemplateSet tmplset[1];
     int failures = 0;
-    struct TemplateOptions templ_opts = {{0}};
-
-    /* Test the module that edits TCP headers */
-    if (templ_tcp_selftest()) {
-        fprintf(stderr, "[-] templ-tcp-hdr: selftest failed\n");
-        return 1;
-    }
-
 
     memset(tmplset, 0, sizeof(tmplset[0]));
     template_packet_init(
@@ -1544,8 +1525,7 @@ template_selftest(void)
             0,  /* UDP payloads = empty */
             0,  /* Oproto payloads = empty */
             1,  /* Ethernet */
-            0,  /* no entropy */
-            &templ_opts
+            0   /* no entropy */
             );
     failures += tmplset->pkts[Proto_TCP].proto  != Proto_TCP;
     failures += tmplset->pkts[Proto_UDP].proto  != Proto_UDP;

@@ -23,7 +23,7 @@
 #include "proto-banner1.h"
 #include "unusedparm.h"
 #include "masscan-app.h"
-#include "stack-tcp-api.h"
+#include "proto-interactive.h"
 #include "proto-ssl.h"
 #include <ctype.h>
 #include <string.h>
@@ -34,10 +34,10 @@
 static void
 smtp_parse(  const struct Banner1 *banner1,
           void *banner1_private,
-          struct StreamState *pstate,
+          struct ProtocolState *pstate,
           const unsigned char *px, size_t length,
           struct BannerOutput *banout,
-          struct stack_handle_t *socket)
+          struct InteractiveData *more)
 {
     unsigned state = pstate->state;
     unsigned i;
@@ -67,7 +67,7 @@ smtp_parse(  const struct Banner1 *banner1,
             case 203:
                 if (!isdigit(px[i]&0xFF)) {
                     state = 0xffffffff;
-                    tcpapi_close(socket);
+                    tcp_close(more);
                 } else {
                     smtp->code *= 10;
                     smtp->code += (px[i] - '0');
@@ -88,7 +88,7 @@ smtp_parse(  const struct Banner1 *banner1,
                     banout_append_char(banout, PROTO_SMTP, px[i]);
                 } else {
                     state = 0xffffffff;
-                    tcpapi_close(socket);
+                    tcp_close(more);
                 }
                 break;
             case 5:
@@ -96,7 +96,7 @@ smtp_parse(  const struct Banner1 *banner1,
                     continue;
                 else if (px[i] == '\n') {
                     if (smtp->is_last) {
-                        tcpapi_send(socket, "EHLO masscan\r\n", 14, 0);
+                        tcp_transmit(more, "EHLO masscan\r\n", 14, 0);
                         state = 100;
                         banout_append_char(banout, PROTO_SMTP, px[i]);
                     } else {
@@ -105,7 +105,7 @@ smtp_parse(  const struct Banner1 *banner1,
                     }
                 } else if (px[i] == '\0' || !isprint(px[i])) {
                     state = 0xffffffff;
-                    tcpapi_close(socket);
+                    tcp_close(more);
                     continue;
                 } else {
                     banout_append_char(banout, PROTO_SMTP, px[i]);
@@ -116,7 +116,7 @@ smtp_parse(  const struct Banner1 *banner1,
                     continue;
                 else if (px[i] == '\n') {
                     if (smtp->is_last) {
-                        tcpapi_send(socket, "STARTTLS\r\n", 10, 0);
+                        tcp_transmit(more, "STARTTLS\r\n", 10, 0);
                         state = 200;
                         banout_append_char(banout, PROTO_SMTP, px[i]);
                     } else {
@@ -125,7 +125,7 @@ smtp_parse(  const struct Banner1 *banner1,
                     }
                 } else if (px[i] == '\0' || !isprint(px[i])) {
                     state = 0xffffffff;
-                    tcpapi_close(socket);
+                    tcp_close(more);
                     continue;
                 } else {
                     banout_append_char(banout, PROTO_SMTP, px[i]);
@@ -146,15 +146,15 @@ smtp_parse(  const struct Banner1 *banner1,
                         pstate->port = (unsigned short)port;
                         state = 0;
                         
-                        tcpapi_send(socket, banner_ssl.hello, banner_ssl.hello_length, 0);
+                        tcp_transmit(more, banner_ssl.hello, banner_ssl.hello_length, 0);
                         
                     } else {
                         state = 0xffffffff;
-                        tcpapi_close(socket);
+                        tcp_close(more);
                     }
                 } else if (px[i] == '\0' || !isprint(px[i])) {
                     state = 0xffffffff;
-                    tcpapi_close(socket);
+                    tcp_close(more);
                     continue;
                 } else {
                     banout_append_char(banout, PROTO_SMTP, px[i]);

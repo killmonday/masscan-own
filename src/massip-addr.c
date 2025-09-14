@@ -36,7 +36,7 @@ _append_ipv6(stream_t *out, const unsigned char *ipv6)
     size_t i;
     int is_ellision = 0;
 
-    /* An IPv6 address is printed as a series of 2-byte hex words
+    /* An IPv6 address is pritned as a series of 2-byte hex words
      * separated by colons :, for a total of 16-bytes */
     for (i = 0; i < 16; i += 2) {
         unsigned n = ipv6[i] << 8 | ipv6[i + 1];
@@ -45,22 +45,20 @@ _append_ipv6(stream_t *out, const unsigned char *ipv6)
          * of 0 can be removed completely, replaced by an extra colon */
         if (n == 0 && !is_ellision) {
             is_ellision = 1;
-            while (i < 13 && ipv6[i + 2] == 0 && ipv6[i + 3] == 0)
+            while (i < 16 && ipv6[i + 2] == 0 && ipv6[i + 3] == 0)
                 i += 2;
             _append_char(out, ':');
 
             /* test for all-zero address, in which case the output
              * will be "::". */
-            while (i == 14 && ipv6[i] == 0 && ipv6[i + 1] == 0){
-                i=16;
+            if (i == 14)
                 _append_char(out, ':');
-            }
             continue;
         }
 
         /* Print the colon between numbers. Fence-post alert: only colons
          * between numbers are printed, not at the beginning or end of the
-         * string */
+         * stirng */
         if (i)
             _append_char(out, ':');
 
@@ -85,7 +83,7 @@ struct ipaddress_formatted ipv6address_fmt(ipv6address a)
     /*
      * Convert address into a sequence of bytes. Our code
      * here represents an IPv6 address as two 64-bit numbers, but
-     * the formatting code above that we copied from a different
+     * the formatting code above that we copied from a diffent
      * project represents it as an array of bytes.
      */
     for (i=0; i<16; i++) {
@@ -227,13 +225,6 @@ static unsigned _count_long(uint64_t number)
     return count;
 }
 
-/**
- * Find the number of bits needed to hold the integer. In other words,
- * the number 0x64 would need 7 bits to store it.
- *
- * We use this to count the size of scans. We currently only support
- * scan sizes up to 63 bits.
- */
 unsigned massint128_bitcount(massint128_t number)
 {
     if (number.hi)
@@ -242,79 +233,15 @@ unsigned massint128_bitcount(massint128_t number)
         return _count_long(number.lo);
 }
 
-ipv6address_t ipv6address_add_uint64(ipv6address_t lhs, uint64_t rhs) {
-    lhs.lo += rhs;
-    if (lhs.lo < rhs) {
-        lhs.hi += 1;
-    }
-    return lhs;
-}
-
-ipv6address_t ipv6address_subtract(ipv6address_t lhs, ipv6address_t rhs) {
-    ipv6address_t difference;
-    difference.hi = lhs.hi - rhs.hi;
-    difference.lo = lhs.lo - rhs.lo;
-
-    /* check for underflow */
-    if (difference.lo > lhs.lo)
-        difference.hi -= 1;
-    return difference;
-}
-
-ipv6address_t ipv6address_add(ipv6address_t lhs, ipv6address_t rhs) {
-    ipv6address_t sum;
-    sum.hi = lhs.hi + rhs.hi;
-    sum.lo = lhs.lo - rhs.lo;
-
-    /* check for underflow */
-    if (sum.lo > lhs.lo)
-        sum.hi += 1;
-    return sum;
-}
-
-
 int ipv6address_selftest(void)
-{
-  struct test_pair {
-    const char *name;             // Human-readable IPv6 address string
-    struct ipaddress ip_addr;     // IP address (union)
-  };
-  /* Probably overkill, added while investigating issue #796 */
-  struct test_pair tests[] = {
-      {"2001:db8:ac10:fe01::2", {.ipv6 = {0x20010db8ac10fe01, 0x0000000000000002}, .version = 6}},
-      {"2607:f8b0:4000::1", {.ipv6 = {0x2607f8b040000000, 0x0000000000000001}, .version = 6}},
-      {"fd12:3456:7890:abcd:ef00::1", {.ipv6 = {0xfd1234567890abcd, 0xef00000000000001}, .version = 6}},
-      {"::1", {.ipv6 = {0x0000000000000000, 0x0000000000000001}, .version = 6}},
-      {"1::", {.ipv6 = {0x0001000000000000, 0x0000000000000000}, .version = 6}},
-      {"1::2", {.ipv6 = {0x0001000000000000, 0x0000000000000002}, .version = 6}},
-      {"2::1", {.ipv6 = {0x0002000000000000, 0x0000000000000001}, .version = 6}},
-      {"1:2::", {.ipv6 = {0x0001000200000000, 0x0000000000000000}, .version = 6}},
-      {NULL, {{0, 0}, 0}}
-  };
-
-  int x = 0;
-  ipaddress ip;
-  struct ipaddress_formatted fmt;
-
-  for (int i = 0; tests[i].name != NULL; i++) {
-    fmt = ipaddress_fmt(tests[i].ip_addr);
-    if (strcmp(fmt.string, tests[i].name) != 0)
-      x++;
-  }
-  return x;
-}
-
-int ipv4address_selftest(void)
 {
     int x = 0;
     ipaddress ip;
-    struct ipaddress_formatted fmt;
 
     ip.version = 4;
     ip.ipv4 = 0x01FF00A3;
 
-    fmt = ipaddress_fmt(ip);
-    if (strcmp(fmt.string, "1.255.0.163") != 0)
+    if (strcmp(ipaddress_fmt(ip).string, "1.255.0.163") != 0)
         x++;
 
     return x;

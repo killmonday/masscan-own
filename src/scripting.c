@@ -1,7 +1,7 @@
 #include "masscan.h"
 #include "scripting.h"
 #include "stub-lua.h"
-#include "util-logger.h"
+#include "logger.h"
 
 #include <stdlib.h>
 
@@ -40,7 +40,7 @@ scripting_init(struct Masscan *masscan)
     masscan->scripting.L = L;
     
     /*
-     * TODO: Sandbox stuff
+     * TODO: Sanbox stuff
      */
     /* We need to do a bunch of sandboxing here to prevent hostile or badly
      * written scripts from disrupting the system */

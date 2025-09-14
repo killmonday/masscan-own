@@ -1,5 +1,5 @@
 #include "masscan.h"
-#include "util-logger.h"
+#include "logger.h"
 #include "rawsock.h"
 #include "rawsock-adapter.h"
 #include "stack-arpv4.h"
@@ -222,7 +222,7 @@ masscan_initialize_adapter(
                             ifname);
             fprintf(stderr, "    [hint] did you spell the name correctly?\n");
             fprintf(stderr, "    [hint] if it has no IP address, manually set with something like "
-                            "\"--source-ip 2001:3b8::1234\"\n");
+                            "\"--souce-ip 2001:3b8::1234\"\n");
             return -1;
         }
         fmt = ipv6address_fmt(adapter_ipv6);

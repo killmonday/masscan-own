@@ -1,7 +1,7 @@
 #include "output.h"
 #include "masscan-app.h"
 #include "masscan-status.h"
-#include "util-safefunc.h"
+#include "string_s.h"
 
 
 
@@ -39,9 +39,9 @@ xml_out_close(struct Output *out, FILE *fp)
     struct tm tm;
 
     if (out->is_gmt)
-        safe_gmtime(&tm, &now);
+        gmtime_s(&tm, &now);
     else
-        safe_localtime(&tm, &now);
+        localtime_s(&tm, &now);
     strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &tm);
 
     fprintf(fp,
@@ -98,7 +98,7 @@ xml_out_banner(struct Output *out, FILE *fp, time_t timestamp,
         unsigned ttl,
         const unsigned char *px, unsigned length)
 {
-    char banner_buffer[MAX_BANNER_LENGTH];
+    char banner_buffer[4096];
     const char *reason;
     ipaddress_formatted_t fmt = ipaddress_fmt(ip);
 

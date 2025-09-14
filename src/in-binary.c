@@ -9,18 +9,13 @@
 #include "masscan-status.h"
 #include "main-globals.h"
 #include "output.h"
-#include "util-safefunc.h"
+#include "string_s.h"
 #include "in-filter.h"
 #include "in-report.h"
 #include "util-malloc.h"
-#include "util-logger.h"
 
 #include <stdlib.h>
 #include <assert.h>
-
-#ifdef _MSC_VER
-#pragma warning(disable:4996)
-#endif
 
 static const size_t BUF_MAX = 1024*1024;
 
@@ -478,36 +473,29 @@ _binaryfile_parse(struct Output *out, const char *filename,
     unsigned char *buf = 0;
     size_t bytes_read;
     uint64_t total_records = 0;
+    int x;
 
     /* Allocate a buffer of up to one megabyte per record */
     buf = MALLOC(BUF_MAX);
 
     /* Open the file */
-    fp = fopen(filename, "rb");
-    if (fp == NULL) {
-        fprintf(stderr, "[-] FAIL: --readscan\n");
-        fprintf(stderr, "[-] %s: %s\n", filename, strerror(errno));
+    x = fopen_s(&fp, filename, "rb");
+    if (x != 0 || fp == NULL) {
+        perror(filename);
         goto end;
     }
 
-    LOG(0, "[+] --readscan %s\n", filename);
-    
-    if (feof(fp)) {
-        LOG(0, "[-] %s: file is empty\n", filename);
-        goto end;
-    }
-    
     /* first record is pseudo-record */
     bytes_read = fread(buf, 1, 'a'+2, fp);
     if (bytes_read < 'a'+2) {
-        LOG(0, "[-] %s: %s\n", filename, strerror(errno));
+        perror(filename);
         goto end;
     }
 
     /* Make sure it's got the format string */
     if (memcmp(buf, "masscan/1.1", 11) != 0) {
-        LOG(0,
-                "[-] %s: unknown file format (expeced \"masscan/1.1\")\n",
+        fprintf(stderr,
+                "%s: unknown file format (expeced \"masscan/1.1\")\n",
                 filename);
         goto end;
     }
@@ -569,12 +557,12 @@ _binaryfile_parse(struct Output *out, const char *filename,
             length = (length << 7) | (buf[0] & 0x7F);
         }
         if (length > BUF_MAX) {
-            LOG(0, "[-] file corrupt\n");
+            fprintf(stderr, "file corrupt\n");
             goto end;
         }
 
 
-        /* get the remainder of the record */
+        /* get the remainder fo the record */
         bytes_read = fread(buf, 1, length, fp);
         if (bytes_read < length)
             break; /* eof */
@@ -594,7 +582,7 @@ _binaryfile_parse(struct Output *out, const char *filename,
                 break;
             case 4:
                 if (fread(buf+bytes_read,1,1,fp) != 1) {
-                    LOG(0, "[-] read() error\n");
+                    fprintf(stderr, "read() error\n");
                     exit(1);
                 }
                 bytes_read++;
@@ -629,12 +617,12 @@ _binaryfile_parse(struct Output *out, const char *filename,
                 //goto end;
                 break;
             default:
-                LOG(0, "[-] file corrupt: unknown type %u\n", type);
+                fprintf(stderr, "file corrupt: unknown type %u\n", type);
                 goto end;
         }
         total_records++;
         if ((total_records & 0xFFFF) == 0)
-            LOG(0, "[+] %s: %8" PRIu64 "\r", filename, total_records);
+            fprintf(stderr, "%s: %8" PRIu64 "\r", filename, total_records);
     }
 
 end:
@@ -653,15 +641,15 @@ end:
  * other formats. This preserves the original timestamps.
  *****************************************************************************/
 void
-readscan_binary_scanfile(struct Masscan *masscan,
+read_binary_scanfile(struct Masscan *masscan,
                      int arg_first, int arg_max, char *argv[])
 {
     struct Output *out;
     int i;
 
-    /*
-     * Create the output system, such as XML or JSON output
-     */
+    //readscan_report_init();
+
+
     out = output_create(masscan, 0);
     
     /*
@@ -684,8 +672,10 @@ readscan_binary_scanfile(struct Masscan *masscan,
         _binaryfile_parse(out, argv[i], &masscan->targets, &masscan->banner_types);
     }
 
-    /* Done! */
     output_destroy(out);
+
+    //readscan_report_print();
+
 }
 
 

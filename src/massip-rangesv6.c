@@ -4,7 +4,7 @@
 #include "massip-rangesv6.h"
 #include "massip-rangesv4.h"
 #include "util-malloc.h"
-#include "util-logger.h"
+#include "logger.h"
 #include "massip.h"
 #include "massip-parse.h"
 
@@ -572,7 +572,7 @@ range6list_optimize(struct Range6List *targets)
 
     for (i=0; i<targets->count; i++) {
         ipv6address x;
-        picker[i] = (size_t)total.lo;
+        picker[i] = total.lo;
         x = _int128_subtract(targets->list[i].end, targets->list[i].begin);
         x = _int128_add64(x, 1);
         total = _int128_add(total, x);
@@ -675,7 +675,7 @@ regress_pick2()
             range6list_add_range(duplicate, addr, addr);
         }
 
-        /* at this point, the two range lists should be identical */
+        /* at this point, the two range lists shouild be identical */
         REGRESS(i, targets->count == duplicate->count);
         REGRESS(i, memcmp(targets->list, duplicate->list, targets->count*sizeof(targets->list[0])) == 0);
 

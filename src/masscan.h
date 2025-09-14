@@ -1,10 +1,9 @@
 #ifndef MASSCAN_H
 #define MASSCAN_H
 #include "massip-addr.h"
-#include "util-safefunc.h"
+#include "string_s.h"
 #include "stack-src.h"
 #include "massip.h"
-#include "util-bool.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -16,7 +15,9 @@
 struct Adapter;
 struct TemplateSet;
 struct Banner1;
-struct TemplateOptions;
+
+extern int output_own_format;
+
 
 /**
  * This is the "operation" to be performed by masscan, which is almost always
@@ -37,7 +38,6 @@ enum Operation {
     Operation_Benchmark = 8,        /* --benchmark */
     Operation_Echo = 9,             /* --echo */
     Operation_EchoAll = 10,         /* --echo-all */
-    Operation_EchoCidr = 11,        /* --echo-cidr */
 };
 
 /**
@@ -98,7 +98,7 @@ struct TcpCfgPayloads
 struct Masscan
 {
     /**
-     * What this program is doing, which is normally "Operation_Scan", but
+     * What this progrma is doing, which is normally "Operation_Scan", but
      * which can be other things, like "Operation_SelfTest"
      */
     enum Operation op;
@@ -113,9 +113,7 @@ struct Masscan
     } scan_type;
     
     /**
-     * After scan type has been configured, add these ports. In other words,
-     * the user may specify `-sU` or `-sT` after the `--top-ports` parameter,
-     * so we have to wait until after parsing arguments to fill in the ports.
+     * After scan type has been configured, add these ports
      */
     unsigned top_ports;
     
@@ -155,7 +153,7 @@ struct Masscan
     struct MassIP targets;
     
     /**
-     * IPv4 addresses/ranges that are to be excluded from the scan. This takes
+     * IPv4 addresses/ranges that are to be exluded from the scan. This takes
      * precedence over any 'include' statement. What happens is this: after
      * all the configuration has been read, we then apply the exclude/blacklist
      * on top of the target/whitelist, leaving only a target/whitelist left.
@@ -187,7 +185,6 @@ struct Masscan
     unsigned is_pfring:1;       /* --pfring */
     unsigned is_sendq:1;        /* --sendq */
     unsigned is_banners:1;      /* --banners */
-    unsigned is_banners_rawudp:1; /* --rawudp */
     unsigned is_offline:1;      /* --offline */
     unsigned is_noreset:1;      /* --noreset, don't transmit RST */
     unsigned is_gmt:1;          /* --gmt, all times in GMT */
@@ -206,11 +203,7 @@ struct Masscan
     unsigned is_hello_http:1;    /* --hello=http, use HTTP on all ports */
     unsigned is_scripting:1;    /* whether scripting is needed */
     unsigned is_capture_servername:1; /* --capture servername */
-
-    /** Packet template options, such as whether we should add a TCP MSS
-     * value, or remove it from the packet */
-    struct TemplateOptions *templ_opts; /* e.g. --tcpmss */
-
+        
     /**
      * Wait forever for responses, instead of the default 10 seconds
      */
@@ -237,7 +230,7 @@ struct Masscan
 
     /**
      * --shard n/m
-     * This is used for distributing a scan across multiple "shards". Every
+     * This is used for distributin a scan acros multiple "shards". Every
      * shard in the scan must know the total number of shards, and must also
      * know which of those shards is it's identity. Thus, shard 1/5 scans
      * a different range than 2/5. These numbers start at 1, so it's
@@ -295,17 +288,6 @@ struct Masscan
         unsigned is_append:1;
         
         /**
-         * --json-status
-         * Print each status update line to stderr as JSON ending with a newline
-         *
-         * This only applies to the three types of status lines that are printed
-         * in status_print(); it does *not* apply to things like startup messages,
-         * error messages or discovery of individual ports
-         *
-         */
-        bool is_status_ndjson;
-
-        /**
          * --open
          * --open-only
          * --show open
@@ -352,7 +334,7 @@ struct Masscan
             
             /**
              * When doing "--rotate daily", the rotation is done at GMT. In 
-             * order to fix this, add an offset.
+             * orderto fix this, add an offset.
              */
             unsigned offset;
             
@@ -395,54 +377,8 @@ struct Masscan
         struct NmapServiceProbeList *probes;
     } payloads;
     
-    /** Reconfigure the HTTP header */
-    struct {
-        /* Method */
-        unsigned char *method;
-        size_t method_length;
-
-        /* URL */
-        unsigned char *url;
-        size_t url_length;
-
-        /* Version */
-        unsigned char *version;
-        size_t version_length;
-
-        /* Host */
-        unsigned char *host;
-        size_t host_length;
-
-        /* User-Agent */
-        unsigned char *user_agent;
-        size_t user_agent_length;
-
-        /* Payload after the header*/
-        unsigned char *payload;
-        size_t payload_length;
-
-        /* Headers */
-        struct {
-            const char *name;
-            unsigned char *value;
-            size_t value_length;
-        } headers[16];
-        size_t headers_count;
-
-        /* Cookies */
-        struct {
-            unsigned char *value;
-            size_t value_length;
-        } cookies[16];
-        size_t cookies_count;
-
-        /* Remove */
-        struct {
-            unsigned char *name;
-        } remove[16];
-        size_t remove_count;
-    } http;
-
+    unsigned char *http_user_agent;
+    unsigned http_user_agent_length;
     unsigned tcp_connection_timeout;
     
     /** Number of seconds to wait for a 'hello' from the server before
@@ -452,12 +388,16 @@ struct Masscan
      * hellos, such as FTP or VNC */
     unsigned tcp_hello_timeout;
 
+    struct {
+        const char *header_name;
+        unsigned char *header_value;
+        unsigned header_value_length;
+    } http_headers[16];
 
     char *bpf_filter;
 
     struct {
         ipaddress ip;
-        char    *password;
         unsigned port;
     } redis;
 
@@ -526,7 +466,7 @@ masscan_set_parameter(struct Masscan *masscan,
 
 
 /**
- * Discover the local network adapter parameters, such as which
+ * Discover the local network adapter parameters, such as whcih
  * MAC address we are using and the MAC addresses of the
  * local routers.
  */
@@ -544,11 +484,5 @@ masscan_initialize_adapter(
  */
 void
 masscan_echo(struct Masscan *masscan, FILE *fp, unsigned is_echo_all);
-
-/**
- * Echoes the list of CIDR ranges to scan.
- */
-void
-masscan_echo_cidr(struct Masscan *masscan, FILE *fp, unsigned is_echo_all);
 
 #endif

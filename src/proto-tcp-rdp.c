@@ -1,14 +1,14 @@
 
 #include "proto-tcp-rdp.h"
 #include "proto-banner1.h"
-#include "stack-tcp-api.h"
+#include "proto-interactive.h"
 #include "unusedparm.h"
 #include "masscan-app.h"
 #include "util-malloc.h"
 #include "assert.h"
 #include <ctype.h>
 #include <string.h>
-#include "util-safefunc.h"
+#include "string_s.h"
 
 /***************************************************************************
  * @param length
@@ -201,10 +201,10 @@ cotp_parse(struct BannerOutput *banout, struct RDPSTUFF *rdp, const unsigned cha
 static void
 rdp_parse(  const struct Banner1 *banner1,
              void *banner1_private,
-             struct StreamState *pstate,
+             struct ProtocolState *pstate,
              const unsigned char *px, size_t length,
              struct BannerOutput *banout,
-             struct stack_handle_t *socket)
+             struct InteractiveData *more)
 {
     unsigned state = pstate->state & 0xFFFFFF;
     struct RDPSTUFF *rdp = &pstate->sub.rdp;
@@ -218,7 +218,7 @@ rdp_parse(  const struct Banner1 *banner1,
     };
     UNUSEDPARM(banner1_private);
     UNUSEDPARM(banner1);
-    UNUSEDPARM(socket);
+    UNUSEDPARM(more);
     
     for (offset=0; offset<length; offset++) {
         unsigned char c = px[offset];
@@ -303,9 +303,9 @@ static int
 rdp_selftest_item(const char *input, size_t length, const char *expect)
 {
     struct Banner1 *banner1;
-    struct StreamState pstate[1];
+    struct ProtocolState pstate[1];
     struct BannerOutput banout1[1];
-    struct stack_handle_t more = {0};
+    struct InteractiveData more;
     int x;
     
     /*
@@ -373,7 +373,7 @@ static const char rdp_hello[] =
 /***************************************************************************
  ***************************************************************************/
 const struct ProtocolParserStream banner_rdp = {
-    "rdp", 3389, rdp_hello, sizeof(rdp_hello)-1, 0,
+    "telnet", 3389, rdp_hello, sizeof(rdp_hello)-1, 0,
     rdp_selftest,
     rdp_init,
     rdp_parse,

@@ -4,7 +4,7 @@
 #include "masscan-status.h"
 #include "out-tcp-services.h"
 #include "massip-port.h"
-#include "util-safefunc.h"
+#include "string_s.h"
 
 
 /****************************************************************************
@@ -75,7 +75,7 @@ grepable_out_open(struct Output *out, FILE *fp)
     unsigned count;
 
     
-    safe_gmtime(&tm, &out->when_scan_started);
+    gmtime_s(&tm, &out->when_scan_started);
 
     //Tue Jan 21 20:23:22 2014
     //%a %b %d %H:%M:%S %Y
@@ -111,7 +111,7 @@ grepable_out_open(struct Output *out, FILE *fp)
 /****************************************************************************
  * This function doesn't really "close" the file. Instead, it's purpose
  * is to print trailing information to the file. This is pretty much only
- * a concern for XML files that need stuff appended to the end.
+ * a concern for XML files that need stuff appeneded to the end.
  ****************************************************************************/
 static void
 grepable_out_close(struct Output *out, FILE *fp)
@@ -122,7 +122,7 @@ grepable_out_close(struct Output *out, FILE *fp)
 
     UNUSEDPARM(out);
 
-    safe_gmtime(&tm, &now);
+    gmtime_s(&tm, &now);
 
     //Tue Jan 21 20:23:22 2014
     //%a %b %d %H:%M:%S %Y
@@ -154,7 +154,7 @@ grepable_out_status(struct Output *out, FILE *fp, time_t timestamp,
     else
         service = oproto_service_name(ip_proto);
     
-    fprintf(fp, "Timestamp: %llu", (unsigned long long)timestamp);
+    fprintf(fp, "Timestamp: %lu", timestamp);
 
     fmt = ipaddress_fmt(ip);
     fprintf(fp, "\tHost: %s ()", fmt.string);
@@ -181,9 +181,9 @@ grepable_out_banner(struct Output *out, FILE *fp, time_t timestamp,
         enum ApplicationProtocol proto, unsigned ttl,
         const unsigned char *px, unsigned length)
 {
-    char banner_buffer[MAX_BANNER_LENGTH];
+    char banner_buffer[4096];
     ipaddress_formatted_t fmt;
-
+    
     UNUSEDPARM(ttl);
     UNUSEDPARM(timestamp);
     UNUSEDPARM(out);

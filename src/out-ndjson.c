@@ -1,7 +1,7 @@
 #include "output.h"
 #include "masscan-app.h"
 #include "masscan-status.h"
-#include "util-safefunc.h"
+#include "string_s.h"
 #include <ctype.h>
 
 

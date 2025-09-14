@@ -1,5 +1,5 @@
 /* Copyright (c) 2007 by Errata Security, All Rights Reserved
- * Programmer(s): Robert David Graham [rdg]
+ * Programer(s): Robert David Graham [rdg]
  */
 #ifndef __PCAPFILE_H
 #define __PCAPFILE_H

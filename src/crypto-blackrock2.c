@@ -1,8 +1,8 @@
-#include "crypto-blackrock.h"
+#include "rand-blackrock.h"
 #include "pixie-timer.h"
 #include "unusedparm.h"
 #include "util-malloc.h"
-#include "util-safefunc.h"
+#include "string_s.h"
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
@@ -453,7 +453,7 @@ verify(struct BlackRock *br, uint64_t max)
     /* Allocate a list of 1-byte counters */
     list = CALLOC(1, (size_t)((range<max)?range:max));
     
-    /* For all numbers in the range, verify increment the counter for
+    /* For all numbers in the range, verify increment the counter for the
      * the output. */
     for (i=0; i<range; i++) {
         uint64_t x = blackrock2_shuffle(br, i);
@@ -495,7 +495,7 @@ printf("    a = 0x%10" PRIx64 "\n", br.a);
 printf("    b = 0x%10" PRIx64 "\n", br.b);*/
 
     /*
-     * Time the algorithm
+     * Time the the algorithm
      */
     start = pixie_nanotime();
     for (i=0; i<ITERATIONS; i++) {

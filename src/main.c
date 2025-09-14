@@ -18,54 +18,54 @@
 #include "masscan.h"
 #include "masscan-version.h"
 #include "masscan-status.h"     /* open or closed */
-#include "massip-parse.h"
-#include "massip-port.h"
+#include "rand-blackrock.h"     /* the BlackRock shuffling func */
+#include "rand-lcg.h"           /* the LCG randomization func */
+#include "templ-pkt.h"          /* packet template, that we use to send */
+#include "rawsock.h"            /* api on top of Linux, Windows, Mac OS X*/
+#include "logger.h"             /* adjust with -v command-line opt */
 #include "main-status.h"        /* printf() regular status updates */
 #include "main-throttle.h"      /* rate limit */
 #include "main-dedup.h"         /* ignore duplicate responses */
 #include "main-ptrace.h"        /* for nmap --packet-trace feature */
-#include "main-globals.h"       /* all the global variables in the program */
-#include "main-readrange.h"
-#include "crypto-siphash24.h"   /* hash function, for hash tables */
-#include "crypto-blackrock.h"   /* the BlackRock shuffling func */
-#include "crypto-lcg.h"         /* the LCG randomization func */
-#include "crypto-base64.h"      /* base64 encode/decode */
-#include "templ-pkt.h"          /* packet template, that we use to send */
-#include "util-logger.h"             /* adjust with -v command-line opt */
+#include "proto-arp.h"          /* for responding to ARP requests */
 #include "stack-ndpv6.h"        /* IPv6 Neighbor Discovery Protocol */
 #include "stack-arpv4.h"        /* Handle ARP resolution and requests */
-#include "rawsock.h"            /* API on top of Linux, Windows, Mac OS X*/
-#include "rawsock-adapter.h"    /* Get Ethernet adapter configuration */
-#include "rawsock-pcapfile.h"   /* for saving pcap files w/ raw packets */
+#include "rawsock-adapter.h"
+#include "proto-banner1.h"      /* for snatching banners from systems */
+#include "proto-tcp.h"          /* for TCP/IP connection table */
+#include "proto-preprocess.h"   /* quick parse of packets */
+#include "proto-icmp.h"         /* handle ICMP responses */
+#include "proto-udp.h"          /* handle UDP responses */
 #include "syn-cookie.h"         /* for SYN-cookies on send */
-#include "output.h"             /* for outputting results */
+#include "output.h"             /* for outputing results */
 #include "rte-ring.h"           /* producer/consumer ring buffer */
+#include "rawsock-pcapfile.h"   /* for saving pcap files w/ raw packets */
 #include "stub-pcap.h"          /* dynamically load libpcap library */
 #include "smack.h"              /* Aho-corasick state-machine pattern-matcher */
 #include "pixie-timer.h"        /* portable time functions */
 #include "pixie-threads.h"      /* portable threads */
-#include "pixie-backtrace.h"    /* maybe print backtrace on crash */
 #include "templ-payloads.h"     /* UDP packet payloads */
-#include "in-binary.h"          /* convert binary output to XML/JSON */
-#include "vulncheck.h"          /* checking vulns like monlist, poodle, heartblee */
-#include "scripting.h"
-#include "read-service-probes.h"
-#include "misc-rstfilter.h"
-#include "proto-x509.h"
-#include "proto-arp.h"          /* for responding to ARP requests */
-#include "proto-banner1.h"      /* for snatching banners from systems */
-#include "stack-tcp-core.h"          /* for TCP/IP connection table */
-#include "proto-preprocess.h"   /* quick parse of packets */
-#include "proto-icmp.h"         /* handle ICMP responses */
-#include "proto-udp.h"          /* handle UDP responses */
 #include "proto-snmp.h"         /* parse SNMP responses */
 #include "proto-ntp.h"          /* parse NTP responses */
 #include "proto-coap.h"         /* CoAP selftest */
+#include "in-binary.h"          /* convert binary output to XML/JSON */
+#include "main-globals.h"       /* all the global variables in the program */
 #include "proto-zeroaccess.h"
+#include "siphash24.h"
+#include "proto-x509.h"
+#include "crypto-base64.h"      /* base64 encode/decode */
+#include "pixie-backtrace.h"
 #include "proto-sctp.h"
 #include "proto-oproto.h"       /* Other protocols on top of IP */
+#include "vulncheck.h"          /* checking vulns like monlist, poodle, heartblee */
+#include "main-readrange.h"
+#include "scripting.h"
+#include "read-service-probes.h"
+#include "misc-rstfilter.h"
 #include "util-malloc.h"
 #include "util-checksum.h"
+#include "massip-parse.h"
+#include "massip-port.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -158,14 +158,7 @@ struct ThreadPair {
     size_t thread_handle_recv;
 };
 
-struct source_t {
-    unsigned ipv4;
-    unsigned ipv4_mask;
-    unsigned port;
-    unsigned port_mask;
-    ipv6address ipv6;
-    ipv6address ipv6_mask;
-};
+
 
 /***************************************************************************
  * We support a range of source IP/port. This function converts that
@@ -174,24 +167,28 @@ struct source_t {
 static void
 adapter_get_source_addresses(const struct Masscan *masscan,
             unsigned nic_index,
-            struct source_t *src)
+            unsigned *src_ipv4,
+            unsigned *src_ipv4_mask,
+            unsigned *src_port,
+            unsigned *src_port_mask,
+            ipv6address *src_ipv6,
+            ipv6address *src_ipv6_mask)
 {
-    const struct stack_src_t *ifsrc = &masscan->nic[nic_index].src;
+    const struct stack_src_t *src = &masscan->nic[nic_index].src;
     static ipv6address mask = {~0ULL, ~0ULL};
 
-    src->ipv4 = ifsrc->ipv4.first;
-    src->ipv4_mask = ifsrc->ipv4.last - ifsrc->ipv4.first;
+    *src_ipv4 = src->ipv4.first;
+    *src_ipv4_mask = src->ipv4.last - src->ipv4.first;
 
-    src->port = ifsrc->port.first;
-    src->port_mask = ifsrc->port.last - ifsrc->port.first;
+    *src_port = src->port.first;
+    *src_port_mask = src->port.last - src->port.first;
 
-    src->ipv6 = ifsrc->ipv6.first;
+    *src_ipv6 = src->ipv6.first;
 
     /* TODO: currently supports only a single address. This needs to
      * be fixed to support a list of addresses */
-    src->ipv6_mask = mask;
+    *src_ipv6_mask = mask;
 }
-
 
 /***************************************************************************
  * This thread spews packets as fast as it can
@@ -220,15 +217,18 @@ transmit_thread(void *v) /*aka. scanning_thread() */
     struct TemplateSet pkt_template = templ_copy(parms->tmplset);
     struct Adapter *adapter = parms->adapter;
     uint64_t packets_sent = 0;
-    unsigned increment = masscan->shard.of * masscan->nic_count;
-    struct source_t src;
+    unsigned increment = (masscan->shard.of-1) + masscan->nic_count;
+    unsigned src_ipv4;
+    unsigned src_ipv4_mask;
+    unsigned src_port;
+    unsigned src_port_mask;
+    ipv6address src_ipv6;
+    ipv6address src_ipv6_mask;
     uint64_t seed = masscan->seed;
     uint64_t repeats = 0; /* --infinite repeats */
     uint64_t *status_syn_count;
     uint64_t entropy = masscan->seed;
 
-    /* Wait to make sure receive_thread is ready */
-    pixie_usleep(1000000);
     LOG(1, "[+] starting transmit thread #%u\n", parms->nic_index);
 
     /* export a pointer to this variable outside this threads so
@@ -241,7 +241,10 @@ transmit_thread(void *v) /*aka. scanning_thread() */
 
     /* Normally, we have just one source address. In special cases, though
      * we can have multiple. */
-    adapter_get_source_addresses(masscan, parms->nic_index, &src);
+    adapter_get_source_addresses(masscan, parms->nic_index,
+                &src_ipv4, &src_ipv4_mask,
+                &src_port, &src_port_mask,
+                &src_ipv6, &src_ipv6_mask);
 
 
     /* "THROTTLER" rate-limits how fast we transmit, set with the
@@ -266,11 +269,11 @@ infinite:
      * a little bit past the end when we have --retries. Yet another
      * thing to do here is deal with multiple network adapters, which
      * is essentially the same logic as shards. */
-    start = masscan->resume.index + (masscan->shard.one-1) * masscan->nic_count + parms->nic_index;
+    start = masscan->resume.index + (masscan->shard.one-1) + parms->nic_index;
     end = range;
     if (masscan->resume.count && end > start + masscan->resume.count)
         end = start + masscan->resume.count;
-    end += retries * range;
+    end += retries * rate;
 
 
     /* -----------------
@@ -342,8 +345,8 @@ infinite:
                 ip_them = range6list_pick(&masscan->targets.ipv6, xXx % count_ipv6);
                 port_them = rangelist_pick(&masscan->targets.ports, xXx / count_ipv6);
 
-                ip_me = src.ipv6;
-                port_me = src.port;
+                ip_me = src_ipv6;
+                port_me = src_port;
                 
                 cookie = syn_cookie_ipv6(ip_them, port_them, ip_me, port_me, entropy);
 
@@ -375,16 +378,16 @@ infinite:
                  * SYN-COOKIE LOGIC
                  *  Figure out the source IP/port, and the SYN cookie
                  */
-                if (src.ipv4_mask > 1 || src.port_mask > 1) {
+                if (src_ipv4_mask > 1 || src_port_mask > 1) {
                     uint64_t ck = syn_cookie_ipv4((unsigned)(i+repeats),
                                             (unsigned)((i+repeats)>>32),
                                             (unsigned)xXx, (unsigned)(xXx>>32),
                                             entropy);
-                    port_me = src.port + (ck & src.port_mask);
-                    ip_me = src.ipv4 + ((ck>>16) & src.ipv4_mask);
+                    port_me = src_port + (ck & src_port_mask);
+                    ip_me = src_ipv4 + ((ck>>16) & src_ipv4_mask);
                 } else {
-                    ip_me = src.ipv4;
-                    port_me = src.port;
+                    ip_me = src_ipv4;
+                    port_me = src_port;
                 }
                 cookie = syn_cookie_ipv4(ip_them, port_them, ip_me, port_me, entropy);
 
@@ -430,7 +433,7 @@ infinite:
          * <ctrl-c> to exit early */
         parms->my_index = i;
 
-        /* If the user pressed <ctrl-c>, then we need to exit. In case
+        /* If the user pressed <ctrl-c>, then we need to exit. but, in case
          * the user wants to --resume the scan later, we save the current
          * state in a file */
         if (is_tx_done) {
@@ -451,7 +454,7 @@ infinite:
     /*
      * Flush any untransmitted packets. High-speed mechanisms like Windows
      * "sendq" and Linux's "PF_RING" queue packets and transmit many together,
-     * so there may be some packets that we've queued but not yet transmitted.
+     * so there may be some packets that we've queueud but not yet transmitted.
      * This call makes sure they are transmitted.
      */
     rawsock_flush(adapter);
@@ -514,7 +517,7 @@ is_nic_port(const struct Masscan *masscan, unsigned ip)
 static unsigned
 is_ipv6_multicast(ipaddress ip_me)
 {
-    /* If this is an IPv6 multicast packet, one sent to the IPv6
+    /* If this is an IPv6 multicast packe, one sent to the IPv6
      * address with a prefix of FF02::/16 */
     return ip_me.version == 6 && (ip_me.ipv6.hi>>48ULL) == 0xFF02;
 }
@@ -545,7 +548,6 @@ receive_thread(void *v)
     uint64_t entropy = masscan->seed;
     struct ResetFilter *rf;
     struct stack_t *stack = parms->stack;
-    struct source_t src = {0};
 
     
     
@@ -604,7 +606,6 @@ receive_thread(void *v)
      */
     if (masscan->is_banners) {
         struct TcpCfgPayloads *pay;
-        size_t i;
 
         /*
          * Create TCP connection table
@@ -623,14 +624,8 @@ receive_thread(void *v)
          * Initialize TCP scripting
          */
         scripting_init_tcp(tcpcon, masscan->scripting.L);
-
-        /*
-         * Get the possible source IP addresses and ports that masscan
-         * might be using to transmit from.
-         */
-        adapter_get_source_addresses(masscan, parms->nic_index, &src);
-                               
-
+        
+        
         /*
          * Set some flags [kludge]
          */
@@ -640,54 +635,44 @@ receive_thread(void *v)
                 masscan->is_capture_html,
                 masscan->is_capture_heartbleed,
 				masscan->is_capture_ticketbleed);
-        if (masscan->is_hello_smbv1)
-            tcpcon_set_parameter(tcpcon, "hello", 1, "smbv1");
-        if (masscan->is_hello_http)
-            tcpcon_set_parameter(tcpcon, "hello", 1, "http");
-        if (masscan->is_hello_ssl)
-            tcpcon_set_parameter(tcpcon, "hello", 1, "ssl");
-        if (masscan->is_heartbleed)
-            tcpcon_set_parameter(tcpcon, "heartbleed", 1, "1");
-        if (masscan->is_ticketbleed)
-            tcpcon_set_parameter(tcpcon, "ticketbleed", 1, "1");
-        if (masscan->is_poodle_sslv3)
-            tcpcon_set_parameter(tcpcon, "sslv3", 1, "1");
-
-        if (masscan->http.payload)
-            tcpcon_set_parameter(   tcpcon,
-                                    "http-payload",
-                                    masscan->http.payload_length,
-                                    masscan->http.payload);
-        if (masscan->http.user_agent)
+        if (masscan->http_user_agent_length)
             tcpcon_set_parameter(   tcpcon,
                                     "http-user-agent",
-                                    masscan->http.user_agent_length,
-                                    masscan->http.user_agent);
-        if (masscan->http.host)
+                                    masscan->http_user_agent_length,
+                                    masscan->http_user_agent);
+        if (masscan->is_hello_smbv1)
             tcpcon_set_parameter(   tcpcon,
-                                    "http-host",
-                                    masscan->http.host_length,
-                                    masscan->http.host);
-        if (masscan->http.method)
+                                 "hello",
+                                 1,
+                                 "smbv1");
+        if (masscan->is_hello_http)
             tcpcon_set_parameter(   tcpcon,
-                                    "http-method",
-                                    masscan->http.method_length,
-                                    masscan->http.method);
-        if (masscan->http.url)
+                                 "hello",
+                                 1,
+                                 "http");
+        if (masscan->is_hello_ssl)
             tcpcon_set_parameter(   tcpcon,
-                                    "http-url",
-                                    masscan->http.url_length,
-                                    masscan->http.url);
-        if (masscan->http.version)
+                                 "hello",
+                                 1,
+                                 "ssl");
+        if (masscan->is_heartbleed)
             tcpcon_set_parameter(   tcpcon,
-                                    "http-version",
-                                    masscan->http.version_length,
-                                    masscan->http.version);
-
-
+                                 "heartbleed",
+                                 1,
+                                 "1");
+        if (masscan->is_ticketbleed)
+            tcpcon_set_parameter(   tcpcon,
+                                 "ticketbleed",
+                                 1,
+                                 "1");
+        if (masscan->is_poodle_sslv3)
+            tcpcon_set_parameter(   tcpcon,
+                                 "sslv3",
+                                 1,
+                                 "1");
         if (masscan->tcp_connection_timeout) {
             char foo[64];
-            snprintf(foo, sizeof(foo), "%u", masscan->tcp_connection_timeout);
+            sprintf_s(foo, sizeof(foo), "%u", masscan->tcp_connection_timeout);
             tcpcon_set_parameter(   tcpcon,
                                  "timeout",
                                  strlen(foo),
@@ -695,38 +680,16 @@ receive_thread(void *v)
         }
         if (masscan->tcp_hello_timeout) {
             char foo[64];
-            snprintf(foo, sizeof(foo), "%u", masscan->tcp_hello_timeout);
+            sprintf_s(foo, sizeof(foo), "%u", masscan->tcp_connection_timeout);
             tcpcon_set_parameter(   tcpcon,
                                  "hello-timeout",
                                  strlen(foo),
                                  foo);
         }
         
-        for (i=0; i<masscan->http.headers_count; i++) {
-            tcpcon_set_http_header(tcpcon,
-                        masscan->http.headers[i].name,
-                        masscan->http.headers[i].value_length,
-                        masscan->http.headers[i].value,
-                        http_field_replace);
-        }
-        for (i=0; i<masscan->http.cookies_count; i++) {
-            tcpcon_set_http_header(tcpcon,
-                        "Cookie",
-                        masscan->http.cookies[i].value_length,
-                        masscan->http.cookies[i].value,
-                        http_field_add);
-        }
-        for (i=0; i<masscan->http.remove_count; i++) {
-            tcpcon_set_http_header(tcpcon,
-                        masscan->http.headers[i].name,
-                        0,
-                        0,
-                        http_field_remove);
-        }
-
         for (pay = masscan->payloads.tcp; pay; pay = pay->next) {
             char name[64];
-            snprintf(name, sizeof(name), "hello-string[%u]", pay->port);
+            sprintf_s(name, sizeof(name), "hello-string[%u]", pay->port);
             tcpcon_set_parameter(   tcpcon, 
                                     name, 
                                     strlen(pay->payload_base64), 
@@ -858,7 +821,7 @@ receive_thread(void *v)
                      * get no responses. */
                     stack_ndpv6_incoming_request(stack, &parsed, px, length);
                     continue;
-                case 136: /* Neighbor Advertisement */
+                case 136: /* Neighbor Advertisment */
                     /* TODO: If doing an --ndpscan, the scanner subsystem needs to deal
                      * with these */
                     continue;
@@ -963,41 +926,43 @@ receive_thread(void *v)
             struct TCP_Control_Block *tcb;
 
             /* does a TCB already exist for this connection? */
-            tcb = tcpcon_lookup_tcb(tcpcon,
+            tcb = tcb_lookup(tcpcon,
                             ip_me, ip_them,
                             port_me, port_them);
 
             if (TCP_IS_SYNACK(px, parsed.transport_offset)) {
                 if (cookie != seqno_me - 1) {
                     ipaddress_formatted_t fmt = ipaddress_fmt(ip_them);
-                    LOG(0, "%s - bad cookie: ackno=0x%08x expected=0x%08x\n",
+                    LOG(2, "%s - bad cookie: ackno=0x%08x expected=0x%08x\n",
                         fmt.string, seqno_me-1, cookie);
                     continue;
                 }
+
                 if (tcb == NULL) {
                     tcb = tcpcon_create_tcb(tcpcon,
                                     ip_me, ip_them,
                                     port_me, port_them,
                                     seqno_me, seqno_them+1,
-                                    parsed.ip_ttl, NULL,
-                                    secs, usecs);
+                                    parsed.ip_ttl);
                     (*status_tcb_count)++;
+
                 }
+
                 Q += stack_incoming_tcp(tcpcon, tcb, TCP_WHAT_SYNACK,
-                    0, 0, secs, usecs, seqno_them+1, seqno_me);
+                    0, 0, secs, usecs, seqno_them+1);
 
             } else if (tcb) {
                 /* If this is an ACK, then handle that first */
                 if (TCP_IS_ACK(px, parsed.transport_offset)) {
                     Q += stack_incoming_tcp(tcpcon, tcb, TCP_WHAT_ACK,
-                        0, 0, secs, usecs, seqno_them, seqno_me);
+                        0, seqno_me, secs, usecs, seqno_them);
                 }
 
                 /* If this contains payload, handle that second */
                 if (parsed.app_length) {
                     Q += stack_incoming_tcp(tcpcon, tcb, TCP_WHAT_DATA,
                         px + parsed.app_offset, parsed.app_length,
-                        secs, usecs, seqno_them, seqno_me);
+                        secs, usecs, seqno_them);
                 }
 
                 /* If this is a FIN, handle that. Note that ACK +
@@ -1005,16 +970,13 @@ receive_thread(void *v)
                 if (TCP_IS_FIN(px, parsed.transport_offset)
                     && !TCP_IS_RST(px, parsed.transport_offset)) {
                     Q += stack_incoming_tcp(tcpcon, tcb, TCP_WHAT_FIN,
-                            0, 0, 
-                            secs, usecs, 
-                            seqno_them + parsed.app_length, /* the FIN comes after any data in the packet */
-                            seqno_me);
+                        0, parsed.app_length, secs, usecs, seqno_them);
                 }
 
                 /* If this is a RST, then we'll be closing the connection */
                 if (TCP_IS_RST(px, parsed.transport_offset)) {
                     Q += stack_incoming_tcp(tcpcon, tcb, TCP_WHAT_RST,
-                        0, 0, secs, usecs, seqno_them, seqno_me);
+                        0, 0, secs, usecs, seqno_them);
                 }
             } else if (TCP_IS_FIN(px, parsed.transport_offset)) {
                 ipaddress_formatted_t fmt;
@@ -1047,6 +1009,7 @@ receive_thread(void *v)
    
         if (TCP_IS_SYNACK(px, parsed.transport_offset)
             || TCP_IS_RST(px, parsed.transport_offset)) {
+
             /* figure out the status */
             status = PortStatus_Unknown;
             if (TCP_IS_SYNACK(px, parsed.transport_offset))
@@ -1058,7 +1021,7 @@ receive_thread(void *v)
             /* verify: syn-cookies */
             if (cookie != seqno_me - 1) {
                 ipaddress_formatted_t fmt = ipaddress_fmt(ip_them);
-                LOG(2, "%s - bad cookie: ackno=0x%08x expected=0x%08x\n",
+                LOG(5, "%s - bad cookie: ackno=0x%08x expected=0x%08x\n",
                     fmt.string, seqno_me-1, cookie);
                 continue;
             }
@@ -1215,8 +1178,7 @@ main_scan(struct Masscan *masscan)
         LOG(0, " [hint] try something like \"--ports 0-65535\"\n");
         return 1;
     }
-    range = count_ips * count_ports;
-    range += (uint64_t)(masscan->retries * range);
+    range = count_ips * count_ports + (uint64_t)(masscan->retries * masscan->max_rate);
 
     /*
      * If doing an ARP scan, then don't allow port scanning
@@ -1234,7 +1196,7 @@ main_scan(struct Masscan *masscan)
      */
     if (count_ips > 1000000000ULL && rangelist_count(&masscan->exclude.ipv4) == 0) {
         LOG(0, "FAIL: range too big, need confirmation\n");
-        LOG(0, " [hint] to prevent accidents, at least one --exclude must be specified\n");
+        LOG(0, " [hint] to prevent acccidents, at least one --exclude must be specified\n");
         LOG(0, " [hint] use \"--exclude 255.255.255.255\" as a simple confirmation\n");
         exit(1);
     }
@@ -1306,8 +1268,7 @@ main_scan(struct Masscan *masscan)
                     masscan->payloads.udp,
                     masscan->payloads.oproto,
                     stack_if_datalink(masscan->nic[index].adapter),
-                    masscan->seed,
-                    masscan->templ_opts);
+                    masscan->seed);
 
         /*
          * Set the "source port" of everything we transmit.
@@ -1315,8 +1276,8 @@ main_scan(struct Masscan *masscan)
         if (masscan->nic[index].src.port.range == 0) {
             unsigned port = 40000 + now % 20000;
             masscan->nic[index].src.port.first = port;
-            masscan->nic[index].src.port.last = port + 16;
-            masscan->nic[index].src.port.range = 16;
+            masscan->nic[index].src.port.last = port;
+            masscan->nic[index].src.port.range = 1;
         }
 
         stack = stack_create(parms->source_mac, &masscan->nic[index].src);
@@ -1347,7 +1308,7 @@ main_scan(struct Masscan *masscan)
         struct tm x;
 
         now = time(0);
-        safe_gmtime(&x, &now);
+        gmtime_s(&x, &now);
         strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S GMT", &x);
         LOG(0, "Starting masscan " MASSCAN_VERSION " (http://bit.ly/14GZzcT) at %s\n",
             buffer);
@@ -1428,16 +1389,16 @@ main_scan(struct Masscan *masscan)
         }
 
         /*
-         * update screen about once per second with statistics,
+         * update screen about every 20 seconds with statistics,
          * namely packets/second.
          */
         if (masscan->output.is_status_updates)
             status_print(&status, min_index, range, rate,
                 total_tcbs, total_synacks, total_syns,
-                0, masscan->output.is_status_ndjson);
+                0);
 
-        /* Sleep for almost a second */
-        pixie_mssleep(750);
+        /* Sleep for 20 seconds */
+        pixie_mssleep(20000);
     }
 
     /*
@@ -1491,16 +1452,10 @@ main_scan(struct Masscan *masscan)
             is_rx_done = 1;
         }
 
-        if (time(0) - now - 10 > masscan->wait) {
-            LOG(0, "[-] Passed the wait window but still running, forcing exit...\n");
-            exit(0);
-        }
-
         if (masscan->output.is_status_updates) {
             status_print(&status, min_index, range, rate,
                 total_tcbs, total_synacks, total_syns,
-                masscan->wait - (time(0) - now),
-                masscan->output.is_status_ndjson);
+                masscan->wait - (time(0) - now));
 
             for (i=0; i<masscan->nic_count; i++) {
                 struct ThreadPair *parms = &parms_array[i];
@@ -1522,7 +1477,7 @@ main_scan(struct Masscan *masscan)
         } else {
             /* [AFL-fuzz]
              * Join the threads, which doesn't allow us to print out 
-             * status messages, but allows us to exit cleanly without
+             * status messages, but allows us to exit cleaningly without
              * any waiting */
             for (i=0; i<masscan->nic_count; i++) {
                 struct ThreadPair *parms = &parms_array[i];
@@ -1548,7 +1503,7 @@ main_scan(struct Masscan *masscan)
     if (!masscan->output.is_status_updates) {
         uint64_t usec_now = pixie_gettime();
 
-        printf("%u milliseconds elapsed\n", (unsigned)((usec_now - usec_start)/1000));
+        printf("%u milliseconds ellapsed\n", (unsigned)((usec_now - usec_start)/1000));
     }
     
     LOG(1, "[+] all threads have exited                    \n");
@@ -1556,9 +1511,7 @@ main_scan(struct Masscan *masscan)
     return 0;
 }
 
-
-
-
+int output_own_format = 0;
 /***************************************************************************
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -1567,7 +1520,7 @@ int main(int argc, char *argv[])
     unsigned i;
     int has_target_addresses = 0;
     int has_target_ports = 0;
-    
+
     usec_start = pixie_gettime();
 #if defined(WIN32)
     {WSADATA x; WSAStartup(0x101, &x);}
@@ -1601,10 +1554,9 @@ int main(int argc, char *argv[])
     masscan->shard.one = 1;
     masscan->shard.of = 1;
     masscan->min_packet_size = 60;
-    masscan->redis.password = NULL;
     masscan->payloads.udp = payloads_udp_create();
     masscan->payloads.oproto = payloads_oproto_create();
-    safe_strcpy(   masscan->output.rotate.directory,
+    strcpy_s(   masscan->output.rotate.directory,
                 sizeof(masscan->output.rotate.directory),
                 ".");
     masscan->is_capture_cert = 1;
@@ -1782,7 +1734,7 @@ int main(int argc, char *argv[])
              * read the binary files, and output them again depending upon
              * the output parameters
              */
-            readscan_binary_scanfile(masscan, start, stop, argv);
+            read_binary_scanfile(masscan, start, stop, argv);
 
         }
         break;
@@ -1805,24 +1757,16 @@ int main(int argc, char *argv[])
         exit(0);
         break;
 
-    case Operation_EchoCidr:
-        masscan_echo_cidr(masscan, stdout, 0);
-        exit(0);
-        break;
-
     case Operation_Selftest:
         /*
          * Do a regression test of all the significant units
          */
         {
             int x = 0;
-            extern int proto_isakmp_selftest(void);
-            
             x += massip_selftest();
             x += ranges6_selftest();
             x += dedup_selftest();
             x += checksum_selftest();
-            x += ipv4address_selftest();
             x += ipv6address_selftest();
             x += proto_coap_selftest();
             x += smack_selftest();
@@ -1833,8 +1777,7 @@ int main(int argc, char *argv[])
             x += siphash24_selftest();
             x += ntp_selftest();
             x += snmp_selftest();
-            x += proto_isakmp_selftest();
-            x += templ_payloads_selftest();
+            x += payloads_udp_selftest();
             x += blackrock_selftest();
             x += rawsock_selftest();
             x += lcg_selftest();
@@ -1847,7 +1790,6 @@ int main(int argc, char *argv[])
             x += zeroaccess_selftest();
             x += nmapserviceprobes_selftest();
             x += rstfilter_selftest();
-            x += masscan_app_selftest();
 
 
             if (x != 0) {
@@ -1865,5 +1807,3 @@ int main(int argc, char *argv[])
 
     return 0;
 }
-
-

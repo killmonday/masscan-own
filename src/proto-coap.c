@@ -6,7 +6,7 @@
  that have a minimal amount of resources, such as less than a
  megabyte of RAM.
  
- From a scanner point of view, we want to execute the equivalent
+ From a scanner point of view, we want to execute the equivelent
  of:
     GET /.well-known/core
  This will return the list of additional items that we can access
@@ -30,17 +30,17 @@
 #include "proto-banner1.h"
 #include "smack.h"
 #include "unusedparm.h"
-#include "util-logger.h"
+#include "logger.h"
 #include "masscan-app.h"
 #include "output.h"
-#include "stack-tcp-api.h"
+#include "proto-interactive.h"
 #include "proto-preprocess.h"
 #include "proto-ssl.h"
 #include "proto-udp.h"
 #include "syn-cookie.h"
 #include "massip-port.h"
 #include "util-malloc.h"
-#include "util-safefunc.h"
+#include "string_s.h"
 #include "util-bool.h"
 #include <ctype.h>
 #include <string.h>
@@ -352,7 +352,7 @@ coap_parse(const unsigned char *px, size_t length, struct BannerOutput *banout,
     /* Response code */
     {
         char buf[64];
-        snprintf(buf, sizeof(buf), "rsp=%u.%u(%s)", code>>5, code&0x1F, response_code(code));
+        sprintf_s(buf, sizeof(buf), "rsp=%u.%u(%s)", code>>5, code&0x1F, response_code(code));
         banout_append(banout, PROTO_COAP, buf, AUTO_LEN);
         //code >>= 5;
     }
@@ -361,7 +361,7 @@ coap_parse(const unsigned char *px, size_t length, struct BannerOutput *banout,
     /* If there was a token, the print it. */
     if (token) {
         char buf[64];
-        snprintf(buf, sizeof(buf), " token=0x%llu", token);
+        sprintf_s(buf, sizeof(buf), " token=0x%llu", token);
         banout_append(banout, PROTO_COAP, buf, AUTO_LEN);
     }
     

@@ -1,7 +1,7 @@
 #include "xring.h"
 #include "pixie-threads.h"
 #include "pixie-timer.h"
-#include "util-safefunc.h"
+#include "string_s.h"
 #include <stdio.h>
 
 

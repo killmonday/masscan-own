@@ -9,22 +9,6 @@
 #endif
 #include <ctype.h>
 
-/**
- * This is a stupid hack to avoid dependencies. I want to minimize the dependence
- * on network libraries. For example, I get a warning message on FreeBSD about
- * a missing `htons()`. I could just add a system header, but then this increases
- * dependencies on other things. Alternatively, I could just implement the
- * function myself. So I chose that route.
- */
-static unsigned short my_htons(unsigned port)
-{
-    static const char test[3] = "\x11\x22";
-    if (*(unsigned short*)test == 0x1122)
-        return (unsigned short)(0xFFFF & port);
-    else
-        return (unsigned short)((port>>8)&0xFF) | ((port&0xFF)<<8);
-}
-
 #if _MSC_VER
 #define strdup _strdup
 #endif
@@ -40,13 +24,13 @@ tcp_service_name(int port)
     if (tcp_services[port])
         return tcp_services[port];
 
-#if defined(__linux__) && !defined(__TERMUX__)
+#ifdef __linux__
     int r;
     struct servent result_buf;
     struct servent *result;
     char buf[2048];
     
-    r = getservbyport_r(my_htons(port), "tcp", &result_buf,buf, sizeof(buf), &result);
+    r = getservbyport_r(htons(port), "tcp", &result_buf,buf, sizeof(buf), &result);
     
     /* ignore ERANGE - if the result can't fit in 2k, just return unknown */
     if (r != 0 || result == NULL)
@@ -57,7 +41,7 @@ tcp_service_name(int port)
     {
     struct servent *result;
     
-    result = getservbyport(my_htons((unsigned short)port), "tcp");
+    result = getservbyport(htons((unsigned short)port), "tcp");
     
     if (result == 0)
         return "unknown";
@@ -72,13 +56,13 @@ udp_service_name(int port)
 {
     if (udp_services[port])
         return udp_services[port];
-#if defined(__linux__) && !defined(__TERMUX__)
+#ifdef __linux__
     int r;
     struct servent result_buf;
     struct servent *result;
     char buf[2048];
     
-    r = getservbyport_r(my_htons(port), "udp", &result_buf,buf, sizeof(buf), &result);
+    r = getservbyport_r(htons(port), "udp", &result_buf,buf, sizeof(buf), &result);
     
     /* ignore ERANGE - if the result can't fit in 2k, just return unknown */
     if (r != 0 || result == NULL)
@@ -89,7 +73,7 @@ udp_service_name(int port)
     {
     struct servent *result;
     
-    result = getservbyport(my_htons((unsigned short)port), "udp");
+    result = getservbyport(htons((unsigned short)port), "udp");
     
     if (result == 0)
         return "unknown";
