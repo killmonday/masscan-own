@@ -1,4 +1,7 @@
-[![Build Status](https://travis-ci.org/robertdavidgraham/masscan.svg?branch=master)](https://travis-ci.org/robertdavidgraham/masscan.svg)
+- 2025.09.14
+配合fscanx
+1.增加输出格式，使用-y选项，输出变为 IP:PORT 每行一个。
+2.修改进度打印间隔时间为20秒，这样基本不会打乱fscanx的输出内容，否则打印内容会错乱
 
 # MASSCAN: Mass IP port scanner
 
